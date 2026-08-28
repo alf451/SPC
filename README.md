@@ -1,25 +1,31 @@
 # leank-spc
 
-App web (FastAPI + PostgreSQL, frontend Vue da fare in una fase successiva) per SPC e raccolta dati in officina, in sostituzione di Mitutoyo MeasurLink 9.
+App web (FastAPI + PostgreSQL, frontend Vue da fare in una fase successiva) per SPC e raccolta dati in officina, in sostituzione di Mitutoyo MeasurLink 9. Installabile su Windows (pilota, zero costi) o Ubuntu/Debian (deployment permanente); può importare la configurazione da un MeasurLink esistente e integrarsi con qualunque ERP per commesse/stampi.
 
 ## Documentazione
 
-- [`docs/installazione.md`](docs/installazione.md) — **installazione pilot** (zero costi, zero admin) per test sul campo dal cliente, affiancata a MeasurLink
+- [`docs/installazione.md`](docs/installazione.md) — installazione **Windows (pilot)** e **Ubuntu (permanente)**
 - [`docs/measurlink-analysis.md`](docs/measurlink-analysis.md) — analisi dello schema originale MeasurLink9 (SQL Server), base del redesign
 - [`docs/schema.sql`](docs/schema.sql) — DDL PostgreSQL completo, commentato con il confronto rispetto all'originale
 - [`docs/api.md`](docs/api.md) — elenco endpoint REST e protocollo messaggi WebSocket
+- [`docs/integrazione-erp.md`](docs/integrazione-erp.md) — commesse, stampi/attrezzature, tracciamento per posizione/cavità
 - [`edge-agent/README.md`](edge-agent/README.md) — configurazione e avvio dell'Edge Agent (RS232/USB-ITN)
+- [`import-measurlink/README.md`](import-measurlink/README.md) — import configurazione/storico da MeasurLink
+- [`admin/README.md`](admin/README.md) — pannello web per configurare stazioni/DAQ e lanciare l'import
 
 ## Struttura
 
 ```
-backend/       API FastAPI + modelli SQLAlchemy + migration Alembic
-edge-agent/    Agente Python da eseguire sui PC di stazione (RS232 + USB-ITN Digimatic)
-docs/          Analisi, schema, documentazione API, guida installazione
-installer/     Installer "pilot mode": zero admin, zero servizi, tutto reversibile
+backend/            API FastAPI + modelli SQLAlchemy + migration Alembic
+edge-agent/          Agente Python da eseguire sui PC di stazione (RS232 + USB-ITN Digimatic)
+import-measurlink/   Tool di import da MeasurLink (SQL Server) verso leank-spc
+admin/                Pannello web (vanilla JS) per configurare stazioni/DAQ e l'import
+docs/                Analisi, schema, documentazione API, guide installazione/integrazione
+installer/           Installer Windows (pilot mode) e Ubuntu (.sh + unit systemd)
+mockup/, site/        Anteprima UI e pagina di presentazione (statiche, per valutazione/demo)
 ```
 
-## Avvio rapido — modalità pilot (consigliata per i test dal cliente)
+## Avvio rapido — Windows, modalità pilota (consigliata per i test dal cliente)
 
 ```
 installer\install.cmd   # una tantum: scarica Python+PostgreSQL portable, crea il DB, applica lo schema
@@ -28,7 +34,20 @@ installer\stop.cmd      # per fermare tutto
 installer\uninstall.cmd # per rimuovere tutto senza lasciare traccia
 ```
 
-Nessun privilegio di amministratore, nessuna installazione di sistema, nessun servizio Windows: tutto vive in `runtime\` (cancellabile in ogni momento). Dettagli in [`docs/installazione.md`](docs/installazione.md).
+Nessun privilegio di amministratore, nessuna installazione di sistema, nessun servizio Windows: tutto vive in `runtime\` (cancellabile in ogni momento).
+
+## Avvio rapido — Ubuntu/Debian, deployment permanente
+
+```bash
+./installer/install.sh
+./installer/start.sh
+```
+
+Usa i pacchetti di sistema (`apt`, PostgreSQL via systemd) — niente trucco "zero admin", qui è normale. Avvio automatico al boot opzionale via `installer/leank-spc.service`. Dettagli in [`docs/installazione.md`](docs/installazione.md).
+
+## Configurare stazioni/DAQ e importare da MeasurLink
+
+Apri [`admin/index.html`](admin/index.html) (vedi [`admin/README.md`](admin/README.md)): pannello con test di collegamento reale (chiede all'Edge Agent lo stato della porta) e monitor di avanzamento per l'import — non solo moduli CLI.
 
 ## Avvio backend (sviluppo locale, alternativa manuale)
 
@@ -58,12 +77,19 @@ Vedi [`edge-agent/README.md`](edge-agent/README.md) per come ottenere il token e
 
 ## Stato del progetto
 
-**Installer pilot mode collaudato end-to-end dal vivo** (non solo scritto): installazione pulita, avvio/stop/riavvio, login, creazione dati via API, persistenza dopo restart — tutto verificato su una macchina Windows reale con PowerShell 5.1. Nel farlo sono stati trovati e corretti 5 bug reali (non solo dell'installer): incompatibilità `passlib`/`bcrypt` recenti (rimosso `passlib`, si usa `bcrypt` direttamente in `app/security.py`), un bug di parsing di SQLAlchemy su script SQL grezzi con `:numero` nei commenti, il limite di asyncpg sugli script multi-statement, e un hang di `pg_ctl` su Windows quando il suo output viene messo in pipe.
+**Collaudato dal vivo, non solo scritto** — su una macchina Windows reale e contro il database MeasurLink9 reale del cliente pilota:
 
-Restano da fare (vedi TODO nel codice):
+- Installer Windows: installazione pulita, avvio/stop/riavvio, login, creazione dati via API, persistenza dopo restart. Trovati e corretti 6 bug reali nel farlo (incompatibilità `passlib`/`bcrypt`, parsing SQLAlchemy su `:numero` nei commenti SQL, limite asyncpg su script multi-statement, hang di `pg_ctl` su pipe Windows, API .NET assente su PowerShell 5.1, `Expand-Archive` assente su Server 2012).
+- Import da MeasurLink: eseguito per davvero contro il DB del cliente (303 Part, 351 Routine, 6394 Feature, 316 strumenti, 4826 calibrazioni) — idempotenza verificata rilanciandolo due volte.
+- Pannello admin: login, CRUD stazioni/DAQ, test di collegamento (con Edge Agent offline → messaggio corretto), avvio import + monitor, tutto verificato in un browser reale.
+- API commesse/stampi (v0.2): creazione idempotente via `external_system`+`external_id`, tools con posizioni auto-generate, verificate via chiamate reali.
+
+Non ancora verificato: gli script Ubuntu (nessuna macchina Linux disponibile in questa sessione — la logica ricalca quella Windows già validata, ma va provata alla prima occasione), il collegamento a strumenti Digimatic fisici veri (finora solo sorgente `mock`).
+
+Resta da fare (vedi TODO nel codice):
 
 - Calcolo statistico (Cp/Cpk, regole SPC Western Electric) alla ricezione di una misura
 - Generazione del corpo HTML dei certificati di taratura dal template esistente
 - Dependency `require_permission()` per l'autorizzazione granulare (schema roles/permissions già pronto)
-- Collaudo e calibrazione del parsing del frame Digimatic RS232 e della decodifica USB-HID sull'**hardware reale di officina** (finora testato solo con la sorgente `mock`, non con strumenti Digimatic veri)
-- Frontend Vue
+- Collaudo e calibrazione del parsing del frame Digimatic RS232 e della decodifica USB-HID sull'**hardware reale di officina**
+- Frontend Vue (oggi solo mockup statico in `mockup/`)

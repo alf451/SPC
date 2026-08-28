@@ -32,7 +32,7 @@ if (-not (Test-Path $pythonExe)) {
     $zipPath = Join-Path $downloadsDir "python-embed.zip"
     Invoke-DownloadFile -Url $PythonEmbedUrl -Destination $zipPath
     Assert-Dir $PythonDir
-    Expand-Archive -Path $zipPath -DestinationPath $PythonDir -Force
+    Expand-ZipFile -ZipPath $zipPath -Destination $PythonDir
     Write-Ok "Estratto in $PythonDir"
 
     # L'embeddable disabilita site-packages/pip per default: lo riabilitiamo.
@@ -70,7 +70,7 @@ if (-not (Test-Path $pgCtl)) {
     $zipPath = Join-Path $downloadsDir "postgresql-binaries.zip"
     Invoke-DownloadFile -Url $PgBinariesUrl -Destination $zipPath
     Assert-Dir $PgDir
-    Expand-Archive -Path $zipPath -DestinationPath $PgDir -Force
+    Expand-ZipFile -ZipPath $zipPath -Destination $PgDir
     Write-Ok "Estratto in $PgDir"
 } else {
     Write-Ok "PostgreSQL gia' pronto in $PgDir"
@@ -143,7 +143,7 @@ JWT_SECRET=$jwtSecret
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=14
-CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:8000
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:8000,null
 "@ | Set-Content $envPath
 Write-Ok "Scritto $envPath"
 

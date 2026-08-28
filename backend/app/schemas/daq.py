@@ -3,6 +3,16 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 
+class SiteCreate(BaseModel):
+    name: str
+
+
+class SiteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
 class StationCreate(BaseModel):
     site_id: int
     name: str
@@ -60,3 +70,9 @@ class FeatureDaqBindingCreate(BaseModel):
     routine_id: int
     feature_id: int
     daq_source_id: int
+
+
+class DaqSourceTestResult(BaseModel):
+    ok: bool
+    message: str
+    sample_raw: str | None = None

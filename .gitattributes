@@ -1,0 +1,5 @@
+# Forza LF per gli script di shell, indipendentemente da come git/l'editor
+# locale sono configurati (core.autocrlf) — un CRLF nello shebang rompe
+# l'esecuzione su Linux ("bad interpreter: /bin/bash^M").
+*.sh text eol=lf
+installer/leank-spc.service text eol=lf

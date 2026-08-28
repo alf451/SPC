@@ -5,9 +5,27 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models.core import Station
-from app.schemas.daq import StationCreate, StationOut
+from app.models.core import Site, Station
+from app.schemas.daq import SiteCreate, SiteOut, StationCreate, StationOut
 from app.security import get_current_user
+
+sites_router = APIRouter(prefix="/api/sites", tags=["stations"], dependencies=[Depends(get_current_user)])
+
+
+@sites_router.get("", response_model=list[SiteOut])
+async def list_sites(session: Annotated[AsyncSession, Depends(get_session)]) -> list[Site]:
+    result = await session.execute(select(Site).order_by(Site.name))
+    return list(result.scalars())
+
+
+@sites_router.post("", response_model=SiteOut, status_code=status.HTTP_201_CREATED)
+async def create_site(payload: SiteCreate, session: Annotated[AsyncSession, Depends(get_session)]) -> Site:
+    site = Site(**payload.model_dump())
+    session.add(site)
+    await session.commit()
+    await session.refresh(site)
+    return site
+
 
 router = APIRouter(prefix="/api/stations", tags=["stations"], dependencies=[Depends(get_current_user)])
 
@@ -38,3 +56,12 @@ async def get_station(station_id: int, session: Annotated[AsyncSession, Depends(
     if station is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stazione non trovata")
     return station
+
+
+@router.delete("/{station_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_station(station_id: int, session: Annotated[AsyncSession, Depends(get_session)]) -> None:
+    station = await session.get(Station, station_id)
+    if station is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stazione non trovata")
+    await session.delete(station)
+    await session.commit()

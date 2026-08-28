@@ -483,3 +483,59 @@ CREATE TABLE capability_test_failures_default PARTITION OF capability_test_failu
 CREATE TABLE gage_tracking_log_default PARTITION OF gage_tracking_log DEFAULT;
 
 COMMIT;
+
+-- =========================================================================
+-- v0.2 — Integrazione ERP: commesse, attrezzature (stampi/fustelle), posizioni
+-- Applicata da backend/migrations/versions/0002_work_orders_tools.py
+-- (migration separata, non rieseguita da 0001 — questa sezione è solo il
+-- riferimento leggibile dello stato finale dello schema).
+-- =========================================================================
+
+BEGIN;
+
+-- "Tool" generalizza qualunque cosa produca pezzi in un evento produttivo
+-- (stampo a iniezione, fustella, stampo di pressofusione, ...).
+CREATE TABLE tools (
+    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name            text NOT NULL,
+    tool_type       text NOT NULL DEFAULT 'other' CHECK (tool_type IN ('mold', 'die', 'other')),
+    position_count  integer NOT NULL DEFAULT 1,
+    description     text,
+    created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+-- una posizione/cavità di un Tool (es. "Cavità 3" di uno stampo a 4 impronte)
+CREATE TABLE tool_positions (
+    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tool_id         bigint NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+    position_no     integer NOT NULL,
+    label           text,
+    notes           text,
+    UNIQUE (tool_id, position_no)
+);
+
+-- commessa — creata di norma da un ERP esterno via POST /api/work-orders
+CREATE TABLE work_orders (
+    id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    order_number        text NOT NULL UNIQUE,
+    part_id             bigint REFERENCES parts(id),
+    customer            text,
+    quantity_ordered    integer,
+    status              text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'closed')),
+    external_system     text,  -- nome dell'ERP di origine, qualunque esso sia
+    external_id         text,  -- id nell'anagrafica dell'ERP, per idempotenza sull'import
+    created_at          timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (external_system, external_id)
+);
+
+-- collegamenti opzionali (nullable, nessuna rottura di compatibilità) verso lo schema v1
+ALTER TABLE runs ADD COLUMN work_order_id bigint REFERENCES work_orders(id);
+ALTER TABLE runs ADD COLUMN tool_id bigint REFERENCES tools(id);
+ALTER TABLE measurements ADD COLUMN tool_position_id bigint REFERENCES tool_positions(id);
+ALTER TABLE attribute_observations ADD COLUMN tool_position_id bigint REFERENCES tool_positions(id);
+
+CREATE INDEX ix_runs_work_order ON runs(work_order_id);
+CREATE INDEX ix_runs_tool ON runs(tool_id);
+CREATE INDEX ix_tool_positions_tool ON tool_positions(tool_id);
+
+COMMIT;

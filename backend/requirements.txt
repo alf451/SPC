@@ -9,3 +9,9 @@ python-jose[cryptography]>=3.3
 bcrypt>=4.0
 python-multipart>=0.0.9
 websockets>=13.0
+pyyaml>=6.0
+# richieste solo dal pannello admin "Import MeasurLink" (app/routers/admin_import.py),
+# non dal resto del backend — pyodbc richiede anche il driver ODBC SQL Server
+# installato a livello di sistema (es. "ODBC Driver 17 for SQL Server")
+pyodbc>=5.0
+psycopg2-binary>=2.9

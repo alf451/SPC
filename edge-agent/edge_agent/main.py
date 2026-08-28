@@ -37,9 +37,13 @@ async def run_source(source: Source, ws_client: WsClient) -> None:
     perché il problema è quasi sempre "strumento/porta non disponibile ora"."""
     while True:
         try:
+            source.is_connected = True
             async for reading in source.read():
+                source.last_reading_at = reading.captured_at
+                source.last_raw = reading.raw_text
                 await ws_client.submit_reading(reading)
         except Exception:
+            source.is_connected = False
             logger.exception("Sorgente %s (canale %s) in errore, retry tra 5s", source.port, source.channel_no)
             await source.close()
             await asyncio.sleep(5)
@@ -47,8 +51,8 @@ async def run_source(source: Source, ws_client: WsClient) -> None:
 
 async def async_main(config: AgentConfig) -> None:
     outbox = Outbox(config.outbox.sqlite_path)
-    ws_client = WsClient(config, outbox)
     sources = [build_source(spec) for spec in config.sources]
+    ws_client = WsClient(config, outbox, sources)
 
     logger.info("Avvio edge agent — stazione %s, %d sorgenti configurate", config.station_id, len(sources))
 

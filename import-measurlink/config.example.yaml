@@ -1,0 +1,21 @@
+# Configurazione per l'import da MeasurLink verso leank-spc.
+# Copiare in config.yaml e compilare con i dati reali (non versionare config.yaml).
+
+source_sqlserver:
+  driver: "{ODBC Driver 17 for SQL Server}"   # verificare quale driver ODBC e' installato: odbcinst -j (Linux) o vedere "Origini dati ODBC" su Windows
+  server: ".\\SQLEXPRESS"                       # es. ".\\SQLEXPRESS" o "nomehost\\istanza" o "nomehost,porta"
+  database: "MeasurLink9"
+  username: "sa"
+  password: "CHANGE_ME"
+  gage_database: "MeasurLink9_GAGE"             # database gemello con strumenti/calibrazione, vuoto/omesso per saltare quel passo
+
+target_postgres:
+  # stessa DATABASE_URL del backend, ma senza il prefisso +asyncpg (qui si usa psycopg2, sincrono)
+  host: "127.0.0.1"
+  port: 5433
+  database: "leank_spc"
+  username: "leank_spc"
+  password: "CHANGE_ME"
+
+# quanti mesi di storico misure importare (FeatureRunData/AttFeatureRunData filtrate per ObsTimestamp)
+since_months: 3

@@ -135,6 +135,9 @@ class Run(Base):
     started_at: Mapped[datetime] = mapped_column(server_default="now()")
     ended_at: Mapped[datetime | None]
     started_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    # integrazione ERP (v0.2, migration 0002): a quale commessa/attrezzatura appartiene questo Run
+    work_order_id: Mapped[int | None] = mapped_column(ForeignKey("work_orders.id"))
+    tool_id: Mapped[int | None] = mapped_column(ForeignKey("tools.id"))
 
 
 class Measurement(Base):
@@ -153,6 +156,8 @@ class Measurement(Base):
     captured_at: Mapped[datetime]
     received_at: Mapped[datetime] = mapped_column(server_default="now()")
     source: Mapped[str] = mapped_column(default="daq")  # daq | manual | import
+    # v0.2: da quale posizione/cavità viene il campione misurato (opzionale)
+    tool_position_id: Mapped[int | None] = mapped_column(ForeignKey("tool_positions.id"))
 
 
 class AttributeObservation(Base):
@@ -168,6 +173,8 @@ class AttributeObservation(Base):
     defect_count: Mapped[int] = mapped_column(default=0)
     captured_at: Mapped[datetime]
     received_at: Mapped[datetime] = mapped_column(server_default="now()")
+    # v0.2: da quale posizione/cavità viene il campione misurato (opzionale)
+    tool_position_id: Mapped[int | None] = mapped_column(ForeignKey("tool_positions.id"))
 
 
 class AttributeSubgroup(Base):

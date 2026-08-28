@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 from edge_agent.models import Reading
 
@@ -19,6 +20,13 @@ class Source(ABC):
     #: annunciati nel messaggio "hello" e con i record daq_sources sul backend
     port: str
     channel_no: int | None
+
+    #: stato "live" aggiornato da main.py::run_source, letto dal gestore del
+    #: messaggio "test_source" (pannello admin -> backend -> agent) per rispondere
+    #: senza dover aprire una seconda connessione concorrente sulla stessa porta
+    is_connected: bool = False
+    last_reading_at: datetime | None = None
+    last_raw: str | None = None
 
     @abstractmethod
     async def read(self) -> AsyncIterator[Reading]:

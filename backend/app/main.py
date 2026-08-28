@@ -2,7 +2,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, calibrations, daq, features, gages, measurements, parts, routines, runs, stations, users
+from app.routers import (
+    admin_import,
+    auth,
+    calibrations,
+    daq,
+    features,
+    gages,
+    measurements,
+    parts,
+    production,
+    routines,
+    runs,
+    stations,
+    users,
+)
+from app.routers.stations import sites_router
 from app.ws import agent_hub, dashboard_hub
 
 
@@ -29,6 +44,9 @@ def create_app() -> FastAPI:
         gages.router,
         calibrations.router,
         users.router,
+        production.router,
+        admin_import.router,
+        sites_router,
     ):
         app.include_router(router)
 

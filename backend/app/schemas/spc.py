@@ -76,6 +76,8 @@ class RunCreate(BaseModel):
     routine_id: int
     station_id: int
     name: str
+    work_order_id: int | None = None  # v0.2: commessa collaudata da questo Run
+    tool_id: int | None = None  # v0.2: attrezzatura (stampo/fustella/...) in uso
 
 
 class RunOut(BaseModel):
@@ -87,6 +89,8 @@ class RunOut(BaseModel):
     status: str
     started_at: datetime
     ended_at: datetime | None
+    work_order_id: int | None
+    tool_id: int | None
 
 
 class MeasurementCreate(BaseModel):
@@ -96,6 +100,7 @@ class MeasurementCreate(BaseModel):
     unit_id: int | None = None
     captured_at: datetime
     source: str = "manual"
+    tool_position_id: int | None = None  # v0.2: da quale posizione/cavità viene il campione
 
 
 class MeasurementOut(BaseModel):
@@ -109,3 +114,4 @@ class MeasurementOut(BaseModel):
     flags: int
     captured_at: datetime
     source: str
+    tool_position_id: int | None

@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>leank·spc — pannello admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EEF1F2; --surface: #FFFFFF; --surface-2: #F5F7F8; --border: #D9DEE2; --border-strong: #C2C9CE;
+    --ink: #16212B; --ink-2: #52626F; --ink-3: #8B98A3;
+    --accent: #0C7C8C; --accent-strong: #085865; --accent-soft: #E1F1F2; --brass: #9C6E37;
+    --good: #2E8B4F; --good-soft: #E4F3E8; --warn: #B4740F; --warn-soft: #FBF0DC;
+    --critical: #C0392B; --critical-soft: #FBE7E4;
+    --font-display: 'IBM Plex Sans Condensed', sans-serif;
+    --font-body: 'IBM Plex Sans', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.5; }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 700; margin: 0; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  a { color: var(--accent-strong); }
+  input, select, textarea, button { font-family: inherit; font-size: 13.5px; }
+  input, select, textarea {
+    padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: 5px; background: var(--surface-2); color: var(--ink);
+  }
+  button {
+    padding: 8px 14px; border-radius: 5px; border: 1px solid var(--border-strong); background: var(--surface);
+    color: var(--ink); cursor: pointer; font-weight: 600;
+  }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { background: var(--accent-strong); }
+  button:hover { border-color: var(--accent); }
+  button.danger { color: var(--critical); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+  .panel-head { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .panel-body { padding: 16px; }
+  .form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .form-row label { font-size: 11.5px; font-weight: 600; color: var(--ink-2); display: block; margin-bottom: 3px; }
+  .field { display: flex; flex-direction: column; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); }
+  .chip.good { background: var(--good-soft); color: var(--good); }
+  .chip.warn { background: var(--warn-soft); color: var(--warn); }
+  .chip.critical { background: var(--critical-soft); color: var(--critical); }
+  .chip.idle { background: var(--surface-2); color: var(--ink-3); border: 1px solid var(--border); }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+  .brand .dot { color: var(--brass); }
+  .tabs { display: flex; gap: 4px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .tab { padding: 10px 16px; cursor: pointer; font-weight: 600; color: var(--ink-2); border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--accent-strong); border-bottom-color: var(--accent); }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px 24px 60px; }
+  .view { display: none; }
+  .view.active { display: block; }
+  .msg { padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
+  .msg.error { background: var(--critical-soft); color: var(--critical); }
+  .msg.ok { background: var(--good-soft); color: var(--good); }
+  .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .login-card { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 30px; }
+  .log-box { background: #0E1417; color: #C9D3D8; font-family: var(--font-mono); font-size: 12px; padding: 12px; border-radius: 6px; max-height: 260px; overflow-y: auto; white-space: pre-wrap; }
+  .hint { font-size: 11.5px; color: var(--ink-3); }
+  .row-actions { display: flex; gap: 6px; }
+  .row-actions button { padding: 4px 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div id="view-login" class="login-screen">
+  <div class="login-card">
+    <div class="brand" style="margin-bottom:4px"><span class="dot">·</span>leank<span class="dot">·</span>spc</div>
+    <div class="hint" style="margin-bottom:20px">PANNELLO ADMIN</div>
+    <div id="login-msg"></div>
+    <div class="field" style="margin-bottom:10px">
+      <label>URL backend</label>
+      <input id="api-base" value="http://127.0.0.1:8000" />
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label>Utente</label>
+      <input id="login-user" value="admin" />
+    </div>
+    <div class="field" style="margin-bottom:16px">
+      <label>Password</label>
+      <input id="login-pass" type="password" />
+    </div>
+    <button class="primary" style="width:100%" onclick="doLogin()">Accedi</button>
+  </div>
+</div>
+
+<div id="view-app" style="display:none">
+  <div class="topbar">
+    <div class="brand"><span class="dot">·</span>leank<span class="dot">·</span>spc <span class="hint" style="font-weight:400">— admin</span></div>
+    <div class="hint"><span id="whoami"></span> · <a href="#" onclick="doLogout(); return false;">esci</a></div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-tab="stations" onclick="switchTab('stations')">Stazioni &amp; DAQ</div>
+    <div class="tab" data-tab="import" onclick="switchTab('import')">Import MeasurLink</div>
+  </div>
+
+  <div class="wrap">
+    <!-- ============================= STAZIONI & DAQ ============================= -->
+    <div id="tab-stations" class="view active">
+
+      <div class="panel">
+        <div class="panel-head"><h3>Sedi</h3></div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div class="field"><label>Nome sede</label><input id="new-site-name" placeholder="es. Sede principale" /></div>
+            <button class="primary" style="align-self:flex-end" onclick="createSite()">Aggiungi</button>
+          </div>
+          <table><thead><tr><th>ID</th><th>Nome</th></tr></thead><tbody id="sites-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Stazioni</h3></div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div class="field"><label>Sede</label><select id="new-station-site"></select></div>
+            <div class="field"><label>Nome</label><input id="new-station-name" placeholder="es. Stazione 1" /></div>
+            <div class="field"><label>Nome PC</label><input id="new-station-computer" placeholder="opzionale" /></div>
+            <button class="primary" style="align-self:flex-end" onclick="createStation()">Aggiungi</button>
+          </div>
+          <table><thead><tr><th>ID</th><th>Sede</th><th>Nome</th><th>PC</th><th>Stato</th><th></th></tr></thead><tbody id="stations-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Dispositivi DAQ</h3><span class="hint">profilo strumento: RS232, USB-HID, ...</span></div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div class="field"><label>Nome</label><input id="new-device-name" placeholder="es. Calibro RS232 9600 7E1" /></div>
+            <div class="field"><label>Tipo</label>
+              <select id="new-device-type"><option value="rs232">rs232</option><option value="usb_hid">usb_hid</option><option value="manual">manual</option></select>
+            </div>
+            <div class="field"><label>Config (JSON)</label><input id="new-device-config" style="width:260px" placeholder='{"baud_rate":9600,"parity":"E"}' value='{"baud_rate":9600,"data_bits":7,"parity":"E","stop_bits":1}' /></div>
+            <button class="primary" style="align-self:flex-end" onclick="createDevice()">Aggiungi</button>
+          </div>
+          <table><thead><tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Config</th><th></th></tr></thead><tbody id="devices-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Sorgenti DAQ (porte)</h3><span class="hint">porta/canale fisico su una stazione</span></div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div class="field"><label>Stazione</label><select id="new-source-station"></select></div>
+            <div class="field"><label>Dispositivo</label><select id="new-source-device"></select></div>
+            <div class="field"><label>Nome</label><input id="new-source-name" placeholder="es. Calibro Ø esterno" /></div>
+            <div class="field"><label>Porta</label><input id="new-source-port" placeholder="es. COM4" /></div>
+            <div class="field"><label>Canale</label><input id="new-source-channel" placeholder="opzionale" style="width:70px" /></div>
+            <button class="primary" style="align-self:flex-end" onclick="createSource()">Aggiungi</button>
+          </div>
+          <table><thead><tr><th>ID</th><th>Stazione</th><th>Nome</th><th>Porta</th><th>Canale</th><th>Test collegamento</th><th></th></tr></thead><tbody id="sources-tbody"></tbody></table>
+          <p class="hint" style="margin-top:8px">"Prova collegamento" chiede all'Edge Agent di quella stazione (se connesso) lo stato reale della porta — non è il backend ad aprirla, non ha accesso diretto all'hardware della stazione.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============================= IMPORT MEASURLINK ============================= -->
+    <div id="tab-import" class="view">
+      <div class="panel">
+        <div class="panel-head"><h3>Connessione a MeasurLink (SQL Server)</h3></div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div class="field"><label>Server/istanza</label><input id="ml-server" value=".\SQLEXPRESS" /></div>
+            <div class="field"><label>Database</label><input id="ml-database" value="MeasurLink9" /></div>
+            <div class="field"><label>Database strumenti (opzionale)</label><input id="ml-gage-database" value="MeasurLink9_GAGE" /></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label>Utente</label><input id="ml-username" value="sa" /></div>
+            <div class="field"><label>Password</label><input id="ml-password" type="password" /></div>
+            <div class="field"><label>Driver ODBC</label><input id="ml-driver" value="{ODBC Driver 17 for SQL Server}" style="width:260px" /></div>
+          </div>
+          <div class="form-row">
+            <button onclick="testMlConnection()">Testa connessione</button>
+            <span id="ml-test-result"></span>
+          </div>
+
+          <hr style="border:none;border-top:1px solid var(--border);margin:16px 0" />
+
+          <div class="form-row">
+            <div class="field"><label>Storico ultimi N mesi</label><input id="ml-since-months" type="number" value="3" style="width:80px" /></div>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:18px"><input type="checkbox" id="ml-only-config" checked /> Solo configurazione (salta lo storico misure)</label>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:18px"><input type="checkbox" id="ml-dry-run" /> Prova (dry-run: non scrive nulla, conta solo)</label>
+          </div>
+          <div class="form-row">
+            <button class="primary" onclick="startMlImport()">Avvia sincronizzazione</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="ml-monitor-panel" style="display:none">
+        <div class="panel-head">
+          <h3>Monitor import</h3>
+          <span id="ml-job-status" class="chip idle">—</span>
+        </div>
+        <div class="panel-body">
+          <div class="log-box" id="ml-log"></div>
+          <div id="ml-summary" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let apiBase = '';
+let token = sessionStorage.getItem('leank_admin_token') || '';
+let mlPollTimer = null;
+
+async function api(path, method, body) {
+  const opts = { method: method || 'GET', headers: {} };
+  if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(apiBase + path, opts);
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { const j = await res.json(); detail = j.detail || JSON.stringify(j); } catch (e) {}
+    throw new Error(`${res.status}: ${detail}`);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function doLogin() {
+  apiBase = document.getElementById('api-base').value.replace(/\/$/, '');
+  const user = document.getElementById('login-user').value;
+  const pass = document.getElementById('login-pass').value;
+  const msgEl = document.getElementById('login-msg');
+  msgEl.innerHTML = '';
+  try {
+    const form = new URLSearchParams();
+    form.set('username', user); form.set('password', pass);
+    const res = await fetch(apiBase + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form });
+    if (!res.ok) throw new Error('Credenziali non valide o backend non raggiungibile');
+    const data = await res.json();
+    token = data.access_token;
+    sessionStorage.setItem('leank_admin_token', token);
+    sessionStorage.setItem('leank_admin_base', apiBase);
+    document.getElementById('view-login').style.display = 'none';
+    document.getElementById('view-app').style.display = 'block';
+    document.getElementById('whoami').textContent = user + ' @ ' + apiBase;
+    await loadStationsTab();
+  } catch (e) {
+    msgEl.innerHTML = `<div class="msg error">${e.message}</div>`;
+  }
+}
+
+function doLogout() {
+  token = ''; sessionStorage.removeItem('leank_admin_token');
+  document.getElementById('view-app').style.display = 'none';
+  document.getElementById('view-login').style.display = 'flex';
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ---------------------------------------------------------------- Stazioni & DAQ
+let _sites = [], _stations = [], _devices = [], _sources = [];
+
+async function loadStationsTab() {
+  [_sites, _stations, _devices, _sources] = await Promise.all([
+    api('/api/sites'), api('/api/stations'), api('/api/daq-devices'), api('/api/daq-sources'),
+  ]);
+  renderSites(); renderStations(); renderDevices(); renderSources();
+}
+
+function renderSites() {
+  document.getElementById('sites-tbody').innerHTML = _sites.map(s => `<tr><td class="mono">${s.id}</td><td>${s.name}</td></tr>`).join('');
+  const sel = document.getElementById('new-station-site');
+  sel.innerHTML = _sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+}
+
+function renderStations() {
+  document.getElementById('stations-tbody').innerHTML = _stations.map(s => {
+    const siteName = (_sites.find(x => x.id === s.site_id) || {}).name || s.site_id;
+    return `<tr><td class="mono">${s.id}</td><td>${siteName}</td><td>${s.name}</td><td class="mono">${s.computer_name || '—'}</td>
+      <td><span class="chip good">${s.status}</span></td>
+      <td class="row-actions"><button class="danger" onclick="deleteStation(${s.id})">elimina</button></td></tr>`;
+  }).join('');
+  const sel = document.getElementById('new-source-station');
+  sel.innerHTML = _stations.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+}
+
+function renderDevices() {
+  document.getElementById('devices-tbody').innerHTML = _devices.map(d => `<tr><td class="mono">${d.id}</td><td>${d.name}</td><td class="mono">${d.connection_type}</td>
+    <td class="mono" style="font-size:11px">${JSON.stringify(d.config)}</td>
+    <td class="row-actions"><button class="danger" onclick="deleteDevice(${d.id})">elimina</button></td></tr>`).join('');
+  const sel = document.getElementById('new-source-device');
+  sel.innerHTML = _devices.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+}
+
+function renderSources() {
+  document.getElementById('sources-tbody').innerHTML = _sources.map(s => {
+    const stationName = (_stations.find(x => x.id === s.station_id) || {}).name || s.station_id;
+    return `<tr><td class="mono">${s.id}</td><td>${stationName}</td><td>${s.name}</td><td class="mono">${s.port || '—'}</td><td class="mono">${s.channel_no ?? '—'}</td>
+      <td id="test-result-${s.id}"><button onclick="testSource(${s.id})">Prova</button></td>
+      <td class="row-actions"><button class="danger" onclick="deleteSource(${s.id})">elimina</button></td></tr>`;
+  }).join('');
+}
+
+async function createSite() {
+  const name = document.getElementById('new-site-name').value.trim();
+  if (!name) return;
+  await api('/api/sites', 'POST', { name });
+  document.getElementById('new-site-name').value = '';
+  await loadStationsTab();
+}
+
+async function createStation() {
+  const site_id = parseInt(document.getElementById('new-station-site').value);
+  const name = document.getElementById('new-station-name').value.trim();
+  const computer_name = document.getElementById('new-station-computer').value.trim() || null;
+  if (!site_id || !name) return alert('Sede e nome sono obbligatori');
+  await api('/api/stations', 'POST', { site_id, name, computer_name });
+  document.getElementById('new-station-name').value = '';
+  await loadStationsTab();
+}
+
+async function deleteStation(id) { if (confirm('Eliminare la stazione?')) { await api(`/api/stations/${id}`, 'DELETE'); await loadStationsTab(); } }
+
+async function createDevice() {
+  const name = document.getElementById('new-device-name').value.trim();
+  const connection_type = document.getElementById('new-device-type').value;
+  let config = {};
+  try { config = JSON.parse(document.getElementById('new-device-config').value || '{}'); } catch (e) { return alert('Config non è JSON valido: ' + e.message); }
+  if (!name) return alert('Nome obbligatorio');
+  await api('/api/daq-devices', 'POST', { name, connection_type, config });
+  document.getElementById('new-device-name').value = '';
+  await loadStationsTab();
+}
+
+async function deleteDevice(id) { if (confirm('Eliminare il dispositivo?')) { await api(`/api/daq-devices/${id}`, 'DELETE'); await loadStationsTab(); } }
+
+async function createSource() {
+  const station_id = parseInt(document.getElementById('new-source-station').value);
+  const device_id = parseInt(document.getElementById('new-source-device').value);
+  const name = document.getElementById('new-source-name').value.trim();
+  const port = document.getElementById('new-source-port').value.trim() || null;
+  const channelRaw = document.getElementById('new-source-channel').value.trim();
+  const channel_no = channelRaw ? parseInt(channelRaw) : null;
+  if (!station_id || !device_id || !name) return alert('Stazione, dispositivo e nome sono obbligatori');
+  await api('/api/daq-sources', 'POST', { station_id, device_id, name, port, channel_no });
+  document.getElementById('new-source-name').value = '';
+  document.getElementById('new-source-port').value = '';
+  await loadStationsTab();
+}
+
+async function deleteSource(id) { if (confirm('Eliminare la sorgente?')) { await api(`/api/daq-sources/${id}`, 'DELETE'); await loadStationsTab(); } }
+
+async function testSource(id) {
+  const cell = document.getElementById('test-result-' + id);
+  cell.innerHTML = '<span class="hint">verifica in corso...</span>';
+  try {
+    const result = await api(`/api/daq-sources/${id}/test`, 'POST');
+    const cls = result.ok ? 'good' : 'warn';
+    cell.innerHTML = `<span class="chip ${cls}">${result.ok ? 'OK' : 'non collegato'}</span> <span class="hint">${result.message}</span>`;
+  } catch (e) {
+    cell.innerHTML = `<span class="chip critical">errore</span> <span class="hint">${e.message}</span> <button onclick="testSource(${id})">riprova</button>`;
+  }
+}
+
+// ---------------------------------------------------------------- Import MeasurLink
+function mlConnParams() {
+  return {
+    driver: document.getElementById('ml-driver').value,
+    server: document.getElementById('ml-server').value,
+    database: document.getElementById('ml-database').value,
+    username: document.getElementById('ml-username').value,
+    password: document.getElementById('ml-password').value,
+    gage_database: document.getElementById('ml-gage-database').value || null,
+  };
+}
+
+async function testMlConnection() {
+  const el = document.getElementById('ml-test-result');
+  el.innerHTML = '<span class="hint">verifica in corso...</span>';
+  try {
+    const result = await api('/api/admin/measurlink-import/test-connection', 'POST', mlConnParams());
+    if (result.ok) {
+      const counts = Object.entries(result.counts).map(([k, v]) => `${k}: ${v}`).join(', ');
+      el.innerHTML = `<span class="chip good">connesso</span> <span class="hint mono">${counts}</span>`;
+    } else {
+      el.innerHTML = `<span class="chip critical">fallito</span> <span class="hint">${result.message}</span>`;
+    }
+  } catch (e) {
+    el.innerHTML = `<span class="chip critical">errore</span> <span class="hint">${e.message}</span>`;
+  }
+}
+
+async function startMlImport() {
+  const payload = {
+    ...mlConnParams(),
+    since_months: parseInt(document.getElementById('ml-since-months').value) || 3,
+    only_config: document.getElementById('ml-only-config').checked,
+    dry_run: document.getElementById('ml-dry-run').checked,
+  };
+  document.getElementById('ml-monitor-panel').style.display = 'block';
+  document.getElementById('ml-log').textContent = 'Avvio job...';
+  document.getElementById('ml-summary').innerHTML = '';
+  try {
+    const job = await api('/api/admin/measurlink-import/run', 'POST', payload);
+    pollMlJob(job.job_id);
+  } catch (e) {
+    document.getElementById('ml-log').textContent = 'Errore avvio: ' + e.message;
+  }
+}
+
+function pollMlJob(jobId) {
+  if (mlPollTimer) clearInterval(mlPollTimer);
+  const statusEl = document.getElementById('ml-job-status');
+  const logEl = document.getElementById('ml-log');
+  const summaryEl = document.getElementById('ml-summary');
+
+  const tick = async () => {
+    let job;
+    try { job = await api(`/api/admin/measurlink-import/jobs/${jobId}`); }
+    catch (e) { logEl.textContent += `\n[errore monitor] ${e.message}`; return; }
+
+    statusEl.textContent = job.status;
+    statusEl.className = 'chip ' + (job.status === 'completed' ? 'good' : job.status === 'failed' ? 'critical' : 'idle');
+    logEl.textContent = job.log.join('\n');
+    logEl.scrollTop = logEl.scrollHeight;
+
+    if (job.status === 'completed' || job.status === 'failed') {
+      clearInterval(mlPollTimer);
+      if (job.summary) summaryEl.innerHTML = `<div class="msg ok">Riepilogo: <span class="mono">${JSON.stringify(job.summary)}</span></div>`;
+      if (job.error) summaryEl.innerHTML += `<div class="msg error">${job.error}</div>`;
+    }
+  };
+  tick();
+  mlPollTimer = setInterval(tick, 1500);
+}
+
+// ---------------------------------------------------------------- avvio
+(function init() {
+  const savedBase = sessionStorage.getItem('leank_admin_base');
+  if (savedBase) document.getElementById('api-base').value = savedBase;
+  if (token) {
+    apiBase = savedBase || document.getElementById('api-base').value;
+    document.getElementById('view-login').style.display = 'none';
+    document.getElementById('view-app').style.display = 'block';
+    loadStationsTab().catch(() => doLogout());
+  }
+})();
+</script>
+</body>
+</html>

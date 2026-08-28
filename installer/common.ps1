@@ -5,6 +5,16 @@
 
 $ErrorActionPreference = "Stop"
 
+# Windows Server datati (2012/2012 R2) spesso hanno .NET Framework configurato
+# a non negoziare TLS 1.2 di default: i download da python.org/enterprisedb.com
+# falliscono in modo silenzioso/criptico senza questa riga. Innocuo su Windows
+# recenti (dove TLS 1.2 e' gia' il default).
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+} catch {
+    Write-Host "ATTENZIONE: impossibile forzare TLS 1.2 esplicitamente ($($_.Exception.Message)) - se i download falliscono, e' probabilmente questo." -ForegroundColor Yellow
+}
+
 $script:ProjectRoot = Split-Path -Parent $PSScriptRoot
 $script:RuntimeDir = Join-Path $ProjectRoot "runtime"
 $script:PythonDir = Join-Path $RuntimeDir "python"
@@ -104,6 +114,17 @@ function Assert-LastExitCode {
     if ($LASTEXITCODE -ne 0) {
         throw "Comando fallito ($Context), exit code $LASTEXITCODE - vedi output sopra"
     }
+}
+
+function Expand-ZipFile {
+    param([string]$ZipPath, [string]$Destination)
+    # Expand-Archive esiste solo da PowerShell 5.0 in poi: su Server 2012/2012 R2
+    # (PowerShell 3.0/4.0 di serie) non c'e'. .NET Framework's ZipFile funziona
+    # gia' da .NET 4.5 (presente di serie anche su Server 2012), quindi e' la
+    # via compatibile con qualunque versione di PowerShell.
+    Assert-Dir $Destination
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $Destination)
 }
 
 function New-RandomSecret {

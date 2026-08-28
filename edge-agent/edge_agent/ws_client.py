@@ -4,12 +4,14 @@ import asyncio
 import itertools
 import json
 import logging
+from datetime import datetime, timezone
 
 import websockets
 
 from edge_agent.config import AgentConfig
 from edge_agent.models import Reading
 from edge_agent.outbox import Outbox
+from edge_agent.sources.base import Source
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +25,10 @@ class WsClient:
     garantisce zero perdita dati durante un'interruzione di rete.
     """
 
-    def __init__(self, config: AgentConfig, outbox: Outbox) -> None:
+    def __init__(self, config: AgentConfig, outbox: Outbox, sources: list[Source]) -> None:
         self._config = config
         self._outbox = outbox
+        self._sources = sources  # per rispondere a "test_source" senza aprire una seconda connessione sulla porta
         self._daq_source_map: dict[tuple[str, int | None], int] = {}
         self._active_run_id: int | None = None
         self._ws: websockets.WebSocketClientProtocol | None = None
@@ -95,6 +98,39 @@ class WsClient:
                     await self._outbox.ack(message["ref"])
                 elif not message.get("ok"):
                     logger.warning("Lettura rifiutata dal server: %s", message.get("reason"))
+
+            elif msg_type == "test_source":
+                await self._handle_test_source(message)
+
+    async def _handle_test_source(self, message: dict) -> None:
+        """Risponde al pulsante "Prova collegamento" del pannello admin (via
+        POST /api/daq-sources/{id}/test sul backend). Non apre una seconda
+        connessione sulla porta — quella e' gia' tenuta aperta dal task in
+        main.py::run_source — riporta invece lo stato "live" di quella sorgente:
+        se e' connessa e quando e' arrivata l'ultima lettura. Per una sorgente in
+        modalita' "push" (lo strumento invia solo alla pressione del tasto DATA)
+        e' l'informazione onesta da dare: non possiamo forzare una lettura,
+        possiamo dire se il canale è aperto e pronto a riceverla.
+        """
+        port = message.get("port")
+        channel_no = message.get("channel_no")
+        source = next((s for s in self._sources if s.port == port and s.channel_no == channel_no), None)
+
+        if source is None:
+            result = {"ok": False, "message": f"Nessuna sorgente configurata per {port} (canale {channel_no})"}
+        elif not source.is_connected:
+            result = {"ok": False, "message": "Porta non aperta - controllare che lo strumento sia collegato e la porta corretta"}
+        elif source.last_reading_at is None:
+            result = {"ok": True, "message": "Porta aperta, in attesa della prima lettura (premere il tasto DATA sullo strumento)"}
+        else:
+            age_s = (datetime.now(timezone.utc) - source.last_reading_at).total_seconds()
+            result = {
+                "ok": True,
+                "message": f"Porta aperta, ultima lettura {age_s:.0f}s fa",
+                "sample_raw": source.last_raw,
+            }
+
+        await self._ws.send(json.dumps({"type": "test_result", "request_id": message.get("request_id"), **result}))
 
     async def _heartbeat_loop(self) -> None:
         while True:

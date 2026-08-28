@@ -73,3 +73,7 @@ Genera letture finte ogni 2 secondi — utile per verificare che il collegamento
 ```
 
 Log a video; `Ctrl+C` per fermare. Le letture non ancora confermate dal server restano in `outbox.sqlite3` e vengono reinviate automaticamente alla riconnessione — non serve fare nulla manualmente dopo un'interruzione di rete.
+
+## "Prova collegamento" dal pannello admin
+
+Il [pannello admin](../admin/index.html) ha un pulsante "Prova" per ogni sorgente DAQ configurata: chiede a questo Edge Agent (se connesso) lo stato reale della porta. Non forza una lettura — in modalità `push` non è possibile senza premere il tasto DATA sullo strumento — riporta invece se la porta è aperta e quando è arrivata l'ultima lettura, leggendo lo stato che `main.py::run_source` tiene aggiornato su ogni `Source` (`is_connected`, `last_reading_at`, `last_raw`). Vedi il protocollo `test_source`/`test_result` in `docs/api.md`.

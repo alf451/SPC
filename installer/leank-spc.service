@@ -1,0 +1,27 @@
+# Template di unit systemd per far partire il backend leank-spc dal boot,
+# per un deployment permanente (non installata/attivata automaticamente da
+# install.sh — questo è un passo deliberato in più).
+#
+# Uso:
+#   1. sostituire USER e /percorso/assoluto/a/leank-spc qui sotto
+#   2. sudo cp leank-spc.service /etc/systemd/system/leank-spc.service
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable --now leank-spc
+#
+# Log: journalctl -u leank-spc -f
+
+[Unit]
+Description=leank-spc backend (FastAPI)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=USER
+WorkingDirectory=/percorso/assoluto/a/leank-spc/backend
+ExecStart=/percorso/assoluto/a/leank-spc/runtime/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

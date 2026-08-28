@@ -28,7 +28,14 @@ Tutte le altre route REST richiedono il bearer token. Autorizzazione granulare p
 | Feature↔DAQ binding | `PUT /api/feature-daq-bindings` | quale sorgente alimenta quale Feature per una Routine |
 | Gages | `GET/POST /api/gages`, `GET /api/gages/{id}` | |
 | Calibrations | `GET/POST /api/calibrations`, `POST /api/calibrations/{id}/results`, `POST /api/calibrations/{id}/complete`, `POST /api/calibrations/{id}/certificate` | generazione certificato ancora stub (TODO template HTML) |
-| Users | `GET/POST /api/users` | |
+| Users | `GET/POST /api/users` | il primo utente si crea con `backend/create_admin.py`, non via API (vedi TODO in `routers/users.py`) |
+| Sites | `GET/POST /api/sites` | |
+| **v0.2 — DAQ live** | `DELETE /api/daq-devices/{id}`, `DELETE /api/daq-sources/{id}`, `DELETE /api/feature-daq-bindings`, `POST /api/daq-sources/{id}/test` | il test chiede all'Edge Agent connesso lo stato reale della porta, vedi protocollo `test_source` sotto |
+| **v0.2 — Tools/commesse** | `GET/POST /api/tools`, `GET /api/tools/{id}`, `GET /api/tools/{id}/positions`, `DELETE /api/tools/{id}` | "tool" generalizza stampo/fustella/attrezzatura; posizioni = cavità |
+| | `GET/POST /api/work-orders`, `GET /api/work-orders/{id}` | POST è l'endpoint di integrazione ERP — idempotente su `(external_system, external_id)`, vedi `docs/integrazione-erp.md` |
+| **v0.2 — Admin import** | `POST /api/admin/measurlink-import/test-connection`, `POST /api/admin/measurlink-import/run`, `GET /api/admin/measurlink-import/jobs/{id}`, `GET /api/admin/measurlink-import/jobs` | invoca in-process il tool in `import-measurlink/`, vedi quel README |
+
+`RunCreate` accetta anche `work_order_id`/`tool_id` opzionali; `MeasurementCreate` accetta `tool_position_id` opzionale (da quale cavità viene il campione).
 
 Paginazione: `limit`/`offset` dove applicabile (default `limit=50`, misure `limit=200`).
 
@@ -47,6 +54,8 @@ Messaggi JSON, campo `type`:
 | `reading` | agent→server | `{daq_source_id, raw_value, captured_at, ref}` | una singola lettura. `ref` è l'id della riga nell'outbox locale dell'agent, echeggiato nell'ack per permettere la correlazione. Il server risolve `daq_source_id` → `feature_id` (via `feature_daq_bindings` sulla Routine del Run attivo), determina se la Feature è `variable`/`attribute` e scrive in `measurements`/`attribute_observations` |
 | `ack` | server→agent | `{ok, ref, obs_no?, reason?}` | conferma scrittura (`reason`: `no_active_run` \| `unbound_daq_source`) — l'agent usa `ref` per rimuovere la riga corrispondente dall'outbox locale |
 | `heartbeat` | entrambe | `{}` | keepalive |
+| `test_source` | server→agent | `{request_id, port, channel_no}` | **v0.2**: chiesto da `POST /api/daq-sources/{id}/test` (pannello admin). Il backend non ha accesso diretto alla porta seriale della stazione, quindi lo chiede all'agent |
+| `test_result` | agent→server | `{request_id, ok, message, sample_raw?}` | risposta al test — correlata via `request_id` a una `Future` lato server (`ConnectionManager.send_agent_request`, timeout 8s). L'agent **non apre una seconda connessione** sulla porta: riporta lo stato "live" della sorgente già in ascolto (connessa? ultima lettura quando?), dato che in modalità "push" non si può forzare una lettura senza premere il tasto DATA sullo strumento |
 
 Dopo ogni `reading` scritta con successo, il server rilancia un evento `measurement` a tutti i client connessi su `/ws/dashboard/{run_id}` per quel Run.
 

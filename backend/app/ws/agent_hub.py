@@ -180,6 +180,12 @@ async def agent_websocket(websocket: WebSocket, station_id: int, token: str | No
             elif msg_type == "heartbeat":
                 await websocket.send_json({"type": "heartbeat"})
 
+            elif msg_type == "test_result":
+                # risposta a un test_source avviato da POST /api/daq-sources/{id}/test
+                request_id = message.get("request_id")
+                if request_id:
+                    manager.resolve_agent_request(request_id, message)
+
     except WebSocketDisconnect:
         pass
     finally:
