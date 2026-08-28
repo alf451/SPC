@@ -1,0 +1,55 @@
+from datetime import datetime
+
+from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db import Base
+
+
+class DaqDevice(Base):
+    """Profilo dispositivo — generalizza Device + RS232DeviceParam + USBKeyboardParam di MeasurLink.
+
+    I parametri specifici per tipo di connessione vivono in `config` (jsonb) invece
+    di una tabella per sottotipo, perché non servono query relazionali su quei campi:
+      rs232:   {"baud_rate":9600,"data_bits":7,"parity":"E","stop_bits":1,
+                "mode":"push"|"polled","channels":[{"no":1,"tag":"CH1"}],
+                "commands":[{"name":"request","value":"R"}]}
+      usb_hid: {"poll_interval_ms":50,"vendor_id":"...","product_id":"..."}
+    """
+
+    __tablename__ = "daq_devices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    description: Mapped[str | None]
+    connection_type: Mapped[str]  # rs232 | usb_hid | manual | opcua | mtconnect
+    terminator: Mapped[str | None]
+    max_string_length: Mapped[int | None]
+    config: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class DaqSource(Base):
+    """Porta/canale fisico su una stazione — equivalente DAQPortSource + RS232DeviceChannel."""
+
+    __tablename__ = "daq_sources"
+    __table_args__ = (UniqueConstraint("station_id", "port", "channel_no"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    station_id: Mapped[int] = mapped_column(ForeignKey("stations.id", ondelete="CASCADE"))
+    device_id: Mapped[int] = mapped_column(ForeignKey("daq_devices.id"))
+    name: Mapped[str]
+    port: Mapped[str | None]  # es. "COM3" o path HID
+    channel_no: Mapped[int | None]  # canale su box multiplexato
+    status: Mapped[str] = mapped_column(default="active")
+
+
+class FeatureDaqBinding(Base):
+    """Quale sorgente DAQ alimenta quale Feature per una Routine — equivalente FeatureRun.DAQSourceID."""
+
+    __tablename__ = "feature_daq_bindings"
+
+    routine_id: Mapped[int] = mapped_column(ForeignKey("routines.id", ondelete="CASCADE"), primary_key=True)
+    feature_id: Mapped[int] = mapped_column(ForeignKey("features.id", ondelete="CASCADE"), primary_key=True)
+    daq_source_id: Mapped[int] = mapped_column(ForeignKey("daq_sources.id", ondelete="CASCADE"))

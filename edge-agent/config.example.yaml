@@ -1,0 +1,47 @@
+# Configurazione Edge Agent — una copia per PC di stazione.
+# Copiare in config.yaml e adattare. Gli ID reali (daq_source_id, feature_id)
+# sono risolti dal backend al messaggio "hello" — qui si definiscono solo le
+# sorgenti fisiche locali (porte COM / dispositivi HID) di questa stazione.
+
+station_id: 1
+
+backend:
+  ws_url: "ws://localhost:8000/ws/agent"
+  # token JWT di un account di servizio, ottenuto con POST /api/auth/login
+  token: "CHANGE_ME"
+  reconnect_backoff_seconds: [1, 2, 5, 10, 30]  # riprovato ciclicamente, l'ultimo valore si ripete
+  heartbeat_interval_seconds: 20
+
+outbox:
+  sqlite_path: "./outbox.sqlite3"
+  retry_interval_seconds: 5
+
+sources:
+  # calibro/micrometro RS232 in modalità "push" (invio alla pressione del tasto DATA)
+  - type: rs232
+    port: "COM3"
+    channel_no: null
+    baud_rate: 9600
+    data_bits: 7
+    parity: "E"        # N | E | O
+    stop_bits: 1
+    mode: "push"        # "push" (ascolto continuo) | "polled" (invia request_command e attende)
+    request_command: null      # es. "R\r\n" se mode=polled
+    frame_terminator: "\r\n"
+
+  # box multiplex con più canali sulla stessa porta RS232 (es. Mitutoyo multi-gage)
+  - type: rs232
+    port: "COM4"
+    channel_no: 1
+    baud_rate: 4800
+    data_bits: 8
+    parity: "N"
+    stop_bits: 1
+    mode: "polled"
+    request_command: "C1\r\n"
+    frame_terminator: "\r\n"
+
+  # convertitore USB-ITN (emulazione tastiera) — es. Mitutoyo IT-016U
+  - type: usb_hid
+    device_path: null   # opzionale: path hidapi specifico se ci sono più convertitori sullo stesso PC
+    poll_interval_ms: 50
