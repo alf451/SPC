@@ -7,21 +7,25 @@
 
 . "$PSScriptRoot\common.ps1"
 
-if (-not (Test-Path (Get-PgCtlExe))) {
-    Write-Host "PostgreSQL non risulta installato. Eseguire prima installer\install.ps1" -ForegroundColor Red
-    exit 1
-}
-
+$postgresMode = Get-PostgresMode
 Write-Step "PostgreSQL"
-if (Test-PostgresRunning) {
-    Write-Ok "Gia' in esecuzione"
+if ($postgresMode -eq "Full") {
+    Write-Ok "Installazione completa: gestito da Windows come servizio, nessuna azione necessaria qui"
 } else {
-    $logFile = Join-Path $LogsDir "postgres.log"
-    # niente "| Write-Host": postgres.exe resta attivo ed eredita l'handle di
-    # stdout, altrimenti PowerShell resta in attesa di un EOF che non arriva
-    # mai finche' il server non si ferma (vedi stessa nota in install.ps1)
-    & (Get-PgCtlExe) start -D $PgDataDir -l $logFile -o "-p $PgPort -c listen_addresses=127.0.0.1" -w
-    Write-Ok "Avviato"
+    if (-not (Test-Path (Get-PgCtlExe))) {
+        Write-Host "PostgreSQL non risulta installato. Eseguire prima installer\install.ps1" -ForegroundColor Red
+        exit 1
+    }
+    if (Test-PostgresRunning) {
+        Write-Ok "Gia' in esecuzione"
+    } else {
+        $logFile = Join-Path $LogsDir "postgres.log"
+        # niente "| Write-Host": postgres.exe resta attivo ed eredita l'handle di
+        # stdout, altrimenti PowerShell resta in attesa di un EOF che non arriva
+        # mai finche' il server non si ferma (vedi stessa nota in install.ps1)
+        & (Get-PgCtlExe) start -D $PgDataDir -l $logFile -o "-p $PgPort -c listen_addresses=127.0.0.1" -w
+        Write-Ok "Avviato"
+    }
 }
 
 $backendPort = Get-BackendPort

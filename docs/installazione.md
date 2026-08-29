@@ -39,13 +39,30 @@ Pensata per essere eseguita **sullo stesso PC dove gira MeasurLink**, in paralle
 1. Copiare l'intera cartella `leank-spc` sul PC (chiavetta USB, cartella di rete, o zip)
 2. Aprire la cartella `leank-spc\installer`
 3. Doppio click su **`install.cmd`**
-4. Attendere (qualche minuto, scarica ed estrae Python e PostgreSQL, crea il database)
-5. Quando chiede la **porta**: premere Invio per usare la 8000, oppure digitarne un'altra se sospetti un conflitto (es. con IIS)
-6. Quando chiede se **raggiungibile da altre macchine della rete**: rispondere "s" solo se serve collegare Edge Agent su altre postazioni (vedi [le tre modalità](#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi) sopra)
-7. Quando chiede se usare **HTTPS**: rispondere "s" solo se serve traffico cifrato (consigliato se si è risposto "s" al punto precedente e la rete non è completamente fidata)
-8. Alla fine viene mostrata la password dell'utente `admin` — **annotarla**, serve per accedere, insieme all'indirizzo esatto da usare (cambia in base alle risposte date sopra)
+4. Attendere (qualche minuto, scarica ed estrae Python e, a seconda della scelta fatta al passo successivo, PostgreSQL)
+5. Quando chiede la **modalità PostgreSQL**: vedi la sezione dedicata [PostgreSQL: portable o completo](#postgresql-portable-o-completo) subito sotto — invio per "portable" (il default, zero admin)
+6. Quando chiede la **porta**: premere Invio per usare la 8000, oppure digitarne un'altra se sospetti un conflitto (es. con IIS)
+7. Quando chiede se **raggiungibile da altre macchine della rete**: rispondere "s" solo se serve collegare Edge Agent su altre postazioni (vedi [le tre modalità](#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi) sopra)
+8. Quando chiede se usare **HTTPS**: rispondere "s" solo se serve traffico cifrato (consigliato se si è risposto "s" al punto precedente e la rete non è completamente fidata)
+9. Alla fine viene mostrata la password dell'utente `admin` — **annotarla**, serve per accedere, insieme all'indirizzo esatto da usare (cambia in base alle risposte date sopra)
 
 Lo script è rieseguibile in sicurezza: se lo si lancia di nuovo senza specificare parametri, ripropone le stesse domande solo se non ha già una configurazione salvata — altrimenti riparte con quella esistente senza chiedere nulla.
+
+### PostgreSQL: portable o completo
+
+Al primo avvio di `install.cmd`, prima ancora della porta, viene chiesto che tipo di PostgreSQL usare. La scelta viene salvata (`runtime\postgres_mode.txt`) e non viene richiesta di nuovo nelle esecuzioni successive.
+
+| Modalità | Cosa fa | Richiede admin? | Quando sceglierla |
+|---|---|---|---|
+| **Portable** (default, invio) | Scarica lo zip binario di PostgreSQL, lo estrae in `runtime\pgsql`, nessun servizio Windows registrato — esattamente come nella modalità pilota "zero admin" descritta sopra | No | Test sul campo, PC del cliente, quando non si vuole/può toccare il sistema |
+| **Completo** | Usa un PostgreSQL vero, con servizio Windows: se ne trova già uno installato sulla macchina lo riusa da solo (chiede solo la password dell'utente `postgres` esistente); altrimenti scarica l'installer ufficiale EDB (~350 MB) e lo esegue in modalità silenziosa, registrando il servizio `postgresql-leankspc` | Sì, **solo per installarne uno nuovo** (se ne riusa uno esistente non serve) | Deployment più stabile/permanente su Windows, o quando si vuole condividere la stessa istanza PostgreSQL con altri usi sulla macchina |
+
+Note importanti sulla modalità **Completo**:
+
+- Se non c'è ancora nessun PostgreSQL installato e la sessione non è amministratore, l'installer si ferma con un errore chiaro invece di procedere a metà — rilanciare `install.cmd` con tasto destro → "Esegui come amministratore", oppure scegliere "portable".
+- Le password generate (superuser `postgres`, account di servizio, utente applicativo `leank_spc`) vengono salvate in `runtime\secrets\` esattamente come in modalità portable — non finiscono mai nella console né in git.
+- **Questo ramo (installazione di un PostgreSQL nuovo) è implementato secondo la documentazione ufficiale EDB ma non è stato collaudato dal vivo** in fase di sviluppo, perché l'ambiente usato per costruirlo non aveva una sessione con privilegi di amministratore disponibile. Il riuso di un'installazione già esistente idem non è stato provabile per mancanza di un PostgreSQL "completo" già installato a disposizione. **Prima di usarla su una macchina del cliente, va provata almeno una volta su una macchina non critica** (es. il server Windows 2012 "cavia" di cui si è già parlato) — se qualcosa non torna nei parametri dell'installer silenzioso o nella rilevazione via registro, è lì che va aggiustato.
+- `uninstall.cmd` in modalità Completo **non disinstalla PostgreSQL** (potrebbe contenere dati importanti o essere usato da altro): rimuove solo la cartella `runtime\` del progetto e stampa i comandi da lanciare a mano se si vuole rimuovere anche il servizio (`Stop-Service postgresql-leankspc; sc.exe delete postgresql-leankspc`, oppure disinstallarlo da Pannello di controllo).
 
 ### Uso quotidiano
 
@@ -60,8 +77,8 @@ Doppio click su **`uninstall.cmd`** → conferma scrivendo `si`. Rimuove tutto (
 ### Cosa NON fa questa modalità (di proposito)
 
 - Non si avvia da sola al riavvio del PC (va rilanciato `start.cmd` manualmente) — corretto per una fase di test dove non si vuole competere con MeasurLink in modo permanente
-- **PostgreSQL** resta comunque raggiungibile solo su `127.0.0.1` anche scegliendo la modalità "intranet" per il backend — solo il backend (le API) diventa raggiungibile dalla rete, il database resta privato a questo PC in ogni caso
-- Non installa un servizio Windows: quando si è convinti che leank-spc debba restare attivo in modo permanente, valutare il passaggio a Ubuntu (sotto)
+- **PostgreSQL** (in entrambe le modalità Portable e Completo) resta comunque raggiungibile solo su `127.0.0.1` anche scegliendo la modalità "intranet" per il backend — solo il backend (le API) diventa raggiungibile dalla rete, il database resta privato a questo PC in ogni caso
+- In modalità PostgreSQL **Portable** non viene installato nessun servizio Windows (nemmeno per il database): quando si è convinti che leank-spc debba restare attivo in modo permanente, valutare la modalità PostgreSQL **Completo** (sopra) oppure il passaggio a Ubuntu (sotto)
 
 ### Risoluzione problemi
 

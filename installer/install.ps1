@@ -34,20 +34,32 @@
 .PARAMETER SslKeyFile
   Percorso alla chiave privata corrispondente a -SslCertFile.
 
+.PARAMETER PostgresMode
+  "Portable" (default): PostgreSQL portable in runtime\pgsql, nessun servizio
+  Windows, nessun privilegio richiesto per questo passo - la modalita' pilota
+  originale. "Full": usa un'installazione PostgreSQL vera con servizio Windows
+  registrato - riusa un'installazione gia' presente sulla macchina se ce n'e'
+  una (rilevata da sola), altrimenti scarica l'installer ufficiale EDB e lo
+  esegue in modalita' silenziosa (richiede una sessione PowerShell da
+  amministratore solo per questo passo).
+
 .EXAMPLE
   .\install.ps1
-  Interattivo: chiede porta, esposizione in rete e HTTPS con Enter per i default.
+  Interattivo: chiede porta, esposizione in rete, HTTPS e modalita' PostgreSQL
+  con Enter per i default.
 
 .EXAMPLE
   .\install.ps1 -Port 8080 -ExposeNetwork -Https
-  Non interattivo, certificato auto-firmato generato in automatico.
+  Non interattivo, certificato auto-firmato generato in automatico, PostgreSQL portable.
 #>
 param(
     [int]$Port = 0,
     [switch]$ExposeNetwork,
     [switch]$Https,
     [string]$SslCertFile = "",
-    [string]$SslKeyFile = ""
+    [string]$SslKeyFile = "",
+    [ValidateSet("", "Portable", "Full")]
+    [string]$PostgresMode = ""
 )
 
 . "$PSScriptRoot\common.ps1"
@@ -101,52 +113,173 @@ Assert-LastExitCode "pip install edge-agent/requirements.txt"
 Write-Ok "Dipendenze installate"
 
 # -------------------------------------------------------------------------
-# 2. PostgreSQL portable (zip binari, nessun MSI/servizio)
+# 2. PostgreSQL: portable (pilota) oppure installazione completa (servizio Windows)
 # -------------------------------------------------------------------------
-Write-Step "PostgreSQL portable"
-$pgCtl = Get-PgCtlExe
-if (-not (Test-Path $pgCtl)) {
-    $zipPath = Join-Path $downloadsDir "postgresql-binaries.zip"
-    Invoke-DownloadFile -Url $PgBinariesUrl -Destination $zipPath
-    Assert-Dir $PgDir
-    Expand-ZipFile -ZipPath $zipPath -Destination $PgDir
-    Write-Ok "Estratto in $PgDir"
+Write-Step "Modalita' PostgreSQL"
+$postgresModeFile = Join-Path $RuntimeDir "postgres_mode.txt"
+if ($PostgresMode -eq "" -and (Test-Path $postgresModeFile)) {
+    $PostgresMode = (Get-Content $postgresModeFile -Raw).Trim()
+    Write-Ok "Modalita' PostgreSQL gia' scelta in precedenza: $PostgresMode (invariata)"
 } else {
-    Write-Ok "PostgreSQL gia' pronto in $PgDir"
+    if ($PostgresMode -eq "") {
+        if ([Environment]::UserInteractive) {
+            $answer = Read-Host "PostgreSQL 'portable' (nessun servizio, tutto in runtime\pgsql, invio per questo default) o installazione 'completa' (servizio Windows vero, richiede amministratore)? [portable/completa]"
+            $PostgresMode = if ($answer -match '^[cC]') { "Full" } else { "Portable" }
+        } else {
+            $PostgresMode = "Portable"
+        }
+    }
+    Write-Ok "Modalita' PostgreSQL: $PostgresMode"
 }
+$PostgresMode | Set-Content -NoNewline $postgresModeFile
 
-$pgSuperuserPasswordFile = Join-Path $SecretsDir "pg_superuser_password.txt"
-if (-not (Test-Path $pgSuperuserPasswordFile)) {
-    New-RandomSecret | Set-Content -NoNewline $pgSuperuserPasswordFile
-}
-$pgSuperuserPassword = Get-Content $pgSuperuserPasswordFile -Raw
+if ($PostgresMode -eq "Full") {
+    # ---------------------------------------------------------------------
+    # 2a. PostgreSQL completo: riusa un'installazione esistente, o installane
+    # una nuova con l'installer ufficiale EDB in modalita' silenziosa.
+    #
+    # NOTA IMPORTANTE: questo ramo non e' stato collaudato dal vivo (l'ambiente
+    # di sviluppo non aveva una sessione con privilegi di amministratore
+    # disponibile) - i parametri dell'installer silenzioso sono presi dalla
+    # documentazione ufficiale EDB ma vanno verificati alla prima esecuzione
+    # reale, idealmente su una macchina non critica prima di un cliente.
+    # ---------------------------------------------------------------------
+    $existingInstalls = Get-FullPostgresInstallations
+    if ($existingInstalls.Count -gt 0) {
+        $install = $existingInstalls[0]
+        $baseDir = $install.'Base Directory'
+        $dataDir = $install.'Data Directory'
+        $psqlExe = Join-Path $baseDir "bin\psql.exe"
+        $pgAppPort = Get-PostgresConfPort -DataDirectory $dataDir
+        Write-Ok "Installazione PostgreSQL esistente trovata: $baseDir (porta $pgAppPort)"
 
-if (-not (Test-Path (Join-Path $PgDataDir "PG_VERSION"))) {
-    Write-Step "Inizializzazione data directory PostgreSQL"
-    $initdb = Join-Path $PgDir "pgsql\bin\initdb.exe"
-    $pwFile = Join-Path $downloadsDir "pg_superuser_pwfile.tmp"
-    Set-Content -NoNewline -Path $pwFile -Value $pgSuperuserPassword
-    & $initdb -D $PgDataDir -U postgres --pwfile=$pwFile --encoding=UTF8 --auth=trust | Write-Host
-    Remove-Item $pwFile
-    Write-Ok "Data directory creata in $PgDataDir"
+        $pgSuperuserPasswordFile = Join-Path $SecretsDir "pg_superuser_password.txt"
+        if (Test-Path $pgSuperuserPasswordFile) {
+            $pgSuperuserPassword = Get-Content $pgSuperuserPasswordFile -Raw
+        } else {
+            Write-Host "   Serve la password dell'utente 'postgres' di questa installazione esistente (non generata da noi, non la conosciamo)." -ForegroundColor Yellow
+            $secure = Read-Host "   Password superuser 'postgres'" -AsSecureString
+            $pgSuperuserPassword = ConvertFrom-SecureStringToPlainText -SecureString $secure
+            $pgSuperuserPassword | Set-Content -NoNewline $pgSuperuserPasswordFile
+        }
+
+        $svc = Get-Service -Name (Split-Path $install.PSChildName -Leaf) -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -ne "Running") {
+            Write-WarnStep "Il servizio PostgreSQL esistente non risulta 'Running' - avviarlo da Servizi.msc prima di continuare."
+        }
+    } else {
+        if (-not (Test-IsAdministrator)) {
+            throw "Installare PostgreSQL completo richiede una sessione PowerShell da amministratore (solo per questo passo - rilanciare install.ps1/install.cmd con 'Esegui come amministratore', oppure scegliere 'portable')."
+        }
+
+        $pgAppPort = $PgPortDefault
+        if (Test-PortInUse -Port $pgAppPort) {
+            Write-WarnStep "La porta $pgAppPort risulta gia' in uso da qualcosa che non e' un'installazione PostgreSQL registrata - verificare manualmente prima di continuare."
+        }
+
+        Write-Step "Download installer PostgreSQL completo (~350 MB)"
+        $installerPath = Join-Path $downloadsDir "postgresql-installer.exe"
+        Invoke-DownloadFile -Url $PgFullInstallerUrl -Destination $installerPath
+
+        $pgSuperuserPasswordFile = Join-Path $SecretsDir "pg_superuser_password.txt"
+        if (-not (Test-Path $pgSuperuserPasswordFile)) {
+            New-RandomSecret | Set-Content -NoNewline $pgSuperuserPasswordFile
+        }
+        $pgSuperuserPassword = Get-Content $pgSuperuserPasswordFile -Raw
+
+        $servicePasswordFile = Join-Path $SecretsDir "pg_service_account_password.txt"
+        if (-not (Test-Path $servicePasswordFile)) {
+            New-RandomSecret | Set-Content -NoNewline $servicePasswordFile
+        }
+        $servicePassword = Get-Content $servicePasswordFile -Raw
+
+        Write-Step "Installazione PostgreSQL in corso (silenziosa, qualche minuto)"
+        $installerArgs = @(
+            "--mode", "unattended",
+            "--unattendedmodeui", "minimal",
+            "--superpassword", $pgSuperuserPassword,
+            "--serviceaccount", "postgres",
+            "--servicepassword", $servicePassword,
+            "--servicename", "postgresql-leankspc",
+            "--serverport", "$pgAppPort",
+            "--disable-components", "stackbuilder",
+            "--install_runtimes", "0"
+        )
+        $proc = Start-Process -FilePath $installerPath -ArgumentList $installerArgs -Wait -PassThru
+        if ($proc.ExitCode -ne 0) {
+            throw "Installer PostgreSQL terminato con codice $($proc.ExitCode) - vedi log installer in %TEMP% per i dettagli"
+        }
+
+        # L'installer di solito avvia gia' il servizio da solo: attendiamo comunque
+        # fino a un minuto nel caso non fosse istantaneo.
+        $svcReady = $false
+        for ($i = 0; $i -lt 60; $i++) {
+            $svc = Get-Service -Name "postgresql-leankspc" -ErrorAction SilentlyContinue
+            if ($svc -and $svc.Status -eq "Running") { $svcReady = $true; break }
+            Start-Sleep -Seconds 1
+        }
+        if (-not $svcReady) {
+            Write-WarnStep "Il servizio 'postgresql-leankspc' non risulta 'Running' dopo l'installazione - controllare Servizi.msc"
+        }
+
+        $install = (Get-FullPostgresInstallations | Where-Object { $_.PSChildName -match "leankspc" } | Select-Object -First 1)
+        if (-not $install) { $install = (Get-FullPostgresInstallations | Select-Object -First 1) }
+        $psqlExe = Join-Path $install.'Base Directory' "bin\psql.exe"
+        Write-Ok "PostgreSQL installato come servizio Windows 'postgresql-leankspc'"
+    }
+
+    $pgAppHostForPsql = "127.0.0.1"
 } else {
-    Write-Ok "Data directory gia' inizializzata"
-}
+    # ---------------------------------------------------------------------
+    # 2b. PostgreSQL portable (zip binari, nessun MSI/servizio) - modalita' originale
+    # ---------------------------------------------------------------------
+    $pgCtl = Get-PgCtlExe
+    if (-not (Test-Path $pgCtl)) {
+        $zipPath = Join-Path $downloadsDir "postgresql-binaries.zip"
+        Invoke-DownloadFile -Url $PgBinariesUrl -Destination $zipPath
+        Assert-Dir $PgDir
+        Expand-ZipFile -ZipPath $zipPath -Destination $PgDir
+        Write-Ok "Estratto in $PgDir"
+    } else {
+        Write-Ok "PostgreSQL gia' pronto in $PgDir"
+    }
 
-Write-Step "Avvio PostgreSQL (porta $PgPort, solo localhost)"
-if (-not (Test-PostgresRunning)) {
-    $logFile = Join-Path $LogsDir "postgres.log"
-    # NOTA: niente "| Write-Host" qui. postgres.exe resta in esecuzione dopo che
-    # pg_ctl termina ed eredita l'handle di stdout: se lo si mette in pipeline,
-    # PowerShell resta in attesa di un EOF che non arriva mai finche' il server
-    # non si ferma, con lo script che sembra bloccarsi indefinitamente.
-    & $pgCtl start -D $PgDataDir -l $logFile -o "-p $PgPort -c listen_addresses=127.0.0.1" -w
-} else {
-    Write-Ok "PostgreSQL gia' in esecuzione"
+    $pgSuperuserPasswordFile = Join-Path $SecretsDir "pg_superuser_password.txt"
+    if (-not (Test-Path $pgSuperuserPasswordFile)) {
+        New-RandomSecret | Set-Content -NoNewline $pgSuperuserPasswordFile
+    }
+    $pgSuperuserPassword = Get-Content $pgSuperuserPasswordFile -Raw
+
+    if (-not (Test-Path (Join-Path $PgDataDir "PG_VERSION"))) {
+        Write-Step "Inizializzazione data directory PostgreSQL"
+        $initdb = Join-Path $PgDir "pgsql\bin\initdb.exe"
+        $pwFile = Join-Path $downloadsDir "pg_superuser_pwfile.tmp"
+        Set-Content -NoNewline -Path $pwFile -Value $pgSuperuserPassword
+        & $initdb -D $PgDataDir -U postgres --pwfile=$pwFile --encoding=UTF8 --auth=trust | Write-Host
+        Remove-Item $pwFile
+        Write-Ok "Data directory creata in $PgDataDir"
+    } else {
+        Write-Ok "Data directory gia' inizializzata"
+    }
+
+    Write-Step "Avvio PostgreSQL (porta $PgPort, solo localhost)"
+    if (-not (Test-PostgresRunning)) {
+        $logFile = Join-Path $LogsDir "postgres.log"
+        # NOTA: niente "| Write-Host" qui. postgres.exe resta in esecuzione dopo che
+        # pg_ctl termina ed eredita l'handle di stdout: se lo si mette in pipeline,
+        # PowerShell resta in attesa di un EOF che non arriva mai finche' il server
+        # non si ferma, con lo script che sembra bloccarsi indefinitamente.
+        & $pgCtl start -D $PgDataDir -l $logFile -o "-p $PgPort -c listen_addresses=127.0.0.1" -w
+    } else {
+        Write-Ok "PostgreSQL gia' in esecuzione"
+    }
+
+    $psqlExe = Get-PsqlExe
+    $pgAppPort = $PgPort
+    $pgAppHostForPsql = "127.0.0.1"
 }
 
 Write-Step "Creazione database applicativo"
-$psql = Get-PsqlExe
 $env:PGPASSWORD = $pgSuperuserPassword
 $appPasswordFile = Join-Path $SecretsDir "pg_app_password.txt"
 if (-not (Test-Path $appPasswordFile)) {
@@ -154,13 +287,13 @@ if (-not (Test-Path $appPasswordFile)) {
 }
 $appPassword = Get-Content $appPasswordFile -Raw
 
-$roleExists = & $psql -h 127.0.0.1 -p $PgPort -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$PgUser'" postgres
+$roleExists = & $psqlExe -h $pgAppHostForPsql -p $pgAppPort -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$PgUser'" postgres
 if (-not $roleExists -or $roleExists.Trim() -ne "1") {
-    & $psql -h 127.0.0.1 -p $PgPort -U postgres -c "CREATE ROLE $PgUser LOGIN PASSWORD '$appPassword';" postgres | Write-Host
+    & $psqlExe -h $pgAppHostForPsql -p $pgAppPort -U postgres -c "CREATE ROLE $PgUser LOGIN PASSWORD '$appPassword';" postgres | Write-Host
 }
-$dbExists = & $psql -h 127.0.0.1 -p $PgPort -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$PgDbName'" postgres
+$dbExists = & $psqlExe -h $pgAppHostForPsql -p $pgAppPort -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$PgDbName'" postgres
 if (-not $dbExists -or $dbExists.Trim() -ne "1") {
-    & $psql -h 127.0.0.1 -p $PgPort -U postgres -c "CREATE DATABASE $PgDbName OWNER $PgUser;" postgres | Write-Host
+    & $psqlExe -h $pgAppHostForPsql -p $pgAppPort -U postgres -c "CREATE DATABASE $PgDbName OWNER $PgUser;" postgres | Write-Host
 }
 Remove-Item Env:\PGPASSWORD
 Write-Ok "Database '$PgDbName' pronto (utente '$PgUser')"
@@ -259,7 +392,7 @@ $scheme = if ($sslCertPath) { "https" } else { "http" }
 $sslLines = if ($sslCertPath) { "BACKEND_SSL_CERTFILE=$sslCertPath`nBACKEND_SSL_KEYFILE=$sslKeyPath" } else { "" }
 
 @"
-DATABASE_URL=postgresql+asyncpg://${PgUser}:${appPassword}@127.0.0.1:$PgPort/$PgDbName
+DATABASE_URL=postgresql+asyncpg://${PgUser}:${appPassword}@127.0.0.1:$pgAppPort/$PgDbName
 BACKEND_HOST=$backendHost
 BACKEND_PORT=$backendPort
 $sslLines

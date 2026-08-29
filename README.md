@@ -34,7 +34,7 @@ installer\stop.cmd      # per fermare tutto
 installer\uninstall.cmd # per rimuovere tutto senza lasciare traccia
 ```
 
-Nessun privilegio di amministratore, nessuna installazione di sistema, nessun servizio Windows: tutto vive in `runtime\` (cancellabile in ogni momento). L'installer chiede porta, raggiungibilità in rete e HTTPS — vedi [le tre modalità di rete](docs/installazione.md#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi) in `docs/installazione.md`.
+L'installer chiede anche che PostgreSQL usare: **portable** (default, nessun privilegio di amministratore, nessun servizio Windows, tutto vive in `runtime\` cancellabile in ogni momento) oppure **completo** (servizio Windows vero — riusa un'installazione già presente sulla macchina, o ne installa una nuova con l'installer ufficiale EDB, richiede admin solo in quel caso). Vedi [PostgreSQL: portable o completo](docs/installazione.md#postgresql-portable-o-completo). Chiede poi porta, raggiungibilità in rete e HTTPS — vedi [le tre modalità di rete](docs/installazione.md#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi) in `docs/installazione.md`.
 
 ## Avvio rapido — Ubuntu/Debian, deployment permanente
 
@@ -84,8 +84,9 @@ Vedi [`edge-agent/README.md`](edge-agent/README.md) per come ottenere il token e
 - Pannello admin: login, CRUD stazioni/DAQ, test di collegamento (con Edge Agent offline → messaggio corretto), avvio import + monitor, tutto verificato in un browser reale.
 - API commesse/stampi (v0.2): creazione idempotente via `external_system`+`external_id`, tools con posizioni auto-generate, verificate via chiamate reali.
 - Le tre modalità di rete (v0.2): porta custom, esposizione LAN con regola firewall, HTTPS con certificato auto-firmato — installate e verificate con login + chiamate API reali su tutte e tre. Un altro bug trovato nel farlo: `ServerCertificateValidationCallback` non funziona in modo affidabile su PowerShell 5.1 (nessun runspace nel thread .NET che lo invoca) — risolto con la vecchia interfaccia `ICertificatePolicy`, collaudata.
+- Modalità PostgreSQL Portable/Completo (v0.2.2): il refactor che introduce la scelta è stato verificato con una **regressione completa** dell'installazione Portable pre-esistente (identica, nessuna rottura).
 
-Non ancora verificato: gli script Ubuntu (nessuna macchina Linux disponibile in questa sessione — la logica ricalca quella Windows già validata, ma va provata alla prima occasione), il collegamento a strumenti Digimatic fisici veri (finora solo sorgente `mock`), il percorso HTTPS con certificato pubblico/Caddy (solo documentato, richiede un dominio reale per essere testato).
+Non ancora verificato: gli script Ubuntu (nessuna macchina Linux disponibile in questa sessione — la logica ricalca quella Windows già validata, ma va provata alla prima occasione), il collegamento a strumenti Digimatic fisici veri (finora solo sorgente `mock`), il percorso HTTPS con certificato pubblico/Caddy (solo documentato, richiede un dominio reale per essere testato), e il ramo **PostgreSQL Completo** (installazione nuova via installer ufficiale EDB, o riuso di una esistente): implementato dalla documentazione ufficiale, ma questa sessione non ha mai avuto una PowerShell da amministratore né un PostgreSQL "completo" già installato a disposizione, quindi **nessuno dei due sotto-percorsi è stato collaudato dal vivo** — solo il guard "richiede amministratore" è stato verificato in isolamento. Da provare su una macchina non critica (es. il Windows 2012 "cavia") prima di usarlo da un cliente.
 
 Resta da fare (vedi TODO nel codice):
 

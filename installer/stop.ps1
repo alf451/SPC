@@ -22,7 +22,9 @@ if (Test-Path $pidFile) {
 }
 
 Write-Step "PostgreSQL"
-if (Test-Path (Get-PgCtlExe)) {
+if ((Get-PostgresMode) -eq "Full") {
+    Write-Ok "Installazione completa: resta attivo, gestito da Windows come servizio ('Stop-Service postgresql-leankspc' se davvero serve fermarlo)"
+} elseif (Test-Path (Get-PgCtlExe)) {
     if (Test-PostgresRunning) {
         & (Get-PgCtlExe) stop -D $PgDataDir -m fast | Write-Host
         Write-Ok "Fermato"

@@ -30,9 +30,13 @@ $script:EnvFile = Join-Path $ProjectRoot "backend\.env"
 
 $script:PythonEmbedUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip"
 $script:PgBinariesUrl = "https://get.enterprisedb.com/postgresql/postgresql-17.10-2-windows-x64-binaries.zip"
+$script:PgFullInstallerUrl = "https://get.enterprisedb.com/postgresql/postgresql-17.11-1-windows-x64.exe"
+$script:PgPortDefault = 5432
 # Se questi URL smettono di funzionare (EDB/python.org possono spostare i file),
-# aggiornarli da https://www.enterprisedb.com/download-postgresql-binaries e
-# https://www.python.org/downloads/windows/ (cercare "embeddable package").
+# aggiornarli da https://www.enterprisedb.com/download-postgresql-binaries
+# (per PgBinariesUrl), https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
+# (per PgFullInstallerUrl, il vero installer grafico - non il file "binaries")
+# e https://www.python.org/downloads/windows/ (cercare "embeddable package").
 
 function Write-Step {
     param([string]$Message)
@@ -92,6 +96,15 @@ function Get-PgCtlExe {
 
 function Get-PsqlExe {
     Join-Path $PgDir "pgsql\bin\psql.exe"
+}
+
+function Get-PostgresMode {
+    # "Portable" (default) o "Full" - scelto durante install.ps1, persistito
+    # qui perche' start.ps1/stop.ps1 sappiano se devono occuparsi loro di
+    # avviare/fermare Postgres (portable) o lasciarlo al servizio Windows (full).
+    $modeFile = Join-Path $RuntimeDir "postgres_mode.txt"
+    if (Test-Path $modeFile) { return (Get-Content $modeFile -Raw).Trim() }
+    return "Portable"
 }
 
 function Test-PostgresRunning {
@@ -195,6 +208,43 @@ function Expand-ZipFile {
     Assert-Dir $Destination
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $Destination)
+}
+
+function Test-IsAdministrator {
+    ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function ConvertFrom-SecureStringToPlainText {
+    # PS 5.1 non ha "ConvertFrom-SecureString -AsPlainText" (solo PS7+).
+    param([Security.SecureString]$SecureString)
+    $ptr = [Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($SecureString)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringUni($ptr)
+    } finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($ptr)
+    }
+}
+
+function Get-FullPostgresInstallations {
+    # Ogni installazione "completa" (installer ufficiale EDB, non la nostra
+    # portable) si registra sotto questa chiave, una sottochiave per versione/
+    # istanza installata. Ritorna array vuoto (non $null) se non ce n'e' nessuna,
+    # cosi' il chiamante puo' sempre fare .Count senza controlli aggiuntivi.
+    $installs = Get-ItemProperty "HKLM:\SOFTWARE\PostgreSQL\Installations\*" -ErrorAction SilentlyContinue
+    if ($null -eq $installs) { return @() }
+    return @($installs)
+}
+
+function Get-PostgresConfPort {
+    # Il registro non riporta sempre la porta configurata: va letta da
+    # postgresql.conf nella Data Directory. Se la riga "port" e' commentata
+    # (default di fabbrica), PostgreSQL usa 5432.
+    param([string]$DataDirectory)
+    $confPath = Join-Path $DataDirectory "postgresql.conf"
+    if (-not (Test-Path $confPath)) { return $PgPortDefault }
+    $line = Get-Content $confPath | Where-Object { $_ -match '^\s*port\s*=\s*(\d+)' } | Select-Object -First 1
+    if ($line -and ($line -match '(\d+)')) { return [int]$Matches[1] }
+    return $PgPortDefault
 }
 
 function New-RandomSecret {
