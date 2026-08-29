@@ -131,7 +131,7 @@ if ($PostgresMode -eq "" -and (Test-Path $postgresModeFile)) {
     }
     Write-Ok "Modalita' PostgreSQL: $PostgresMode"
 }
-$PostgresMode | Set-Content -NoNewline $postgresModeFile
+$PostgresMode | Set-FileContentNoNewline $postgresModeFile
 
 if ($PostgresMode -eq "Full") {
     # ---------------------------------------------------------------------
@@ -160,7 +160,7 @@ if ($PostgresMode -eq "Full") {
             Write-Host "   Serve la password dell'utente 'postgres' di questa installazione esistente (non generata da noi, non la conosciamo)." -ForegroundColor Yellow
             $secure = Read-Host "   Password superuser 'postgres'" -AsSecureString
             $pgSuperuserPassword = ConvertFrom-SecureStringToPlainText -SecureString $secure
-            $pgSuperuserPassword | Set-Content -NoNewline $pgSuperuserPasswordFile
+            $pgSuperuserPassword | Set-FileContentNoNewline $pgSuperuserPasswordFile
         }
 
         $svc = Get-Service -Name (Split-Path $install.PSChildName -Leaf) -ErrorAction SilentlyContinue
@@ -183,13 +183,13 @@ if ($PostgresMode -eq "Full") {
 
         $pgSuperuserPasswordFile = Join-Path $SecretsDir "pg_superuser_password.txt"
         if (-not (Test-Path $pgSuperuserPasswordFile)) {
-            New-RandomSecret | Set-Content -NoNewline $pgSuperuserPasswordFile
+            New-RandomSecret | Set-FileContentNoNewline $pgSuperuserPasswordFile
         }
         $pgSuperuserPassword = Get-Content $pgSuperuserPasswordFile -Raw
 
         $servicePasswordFile = Join-Path $SecretsDir "pg_service_account_password.txt"
         if (-not (Test-Path $servicePasswordFile)) {
-            New-RandomSecret | Set-Content -NoNewline $servicePasswordFile
+            New-RandomSecret | Set-FileContentNoNewline $servicePasswordFile
         }
         $servicePassword = Get-Content $servicePasswordFile -Raw
 
@@ -246,7 +246,7 @@ if ($PostgresMode -eq "Full") {
 
     $pgSuperuserPasswordFile = Join-Path $SecretsDir "pg_superuser_password.txt"
     if (-not (Test-Path $pgSuperuserPasswordFile)) {
-        New-RandomSecret | Set-Content -NoNewline $pgSuperuserPasswordFile
+        New-RandomSecret | Set-FileContentNoNewline $pgSuperuserPasswordFile
     }
     $pgSuperuserPassword = Get-Content $pgSuperuserPasswordFile -Raw
 
@@ -254,7 +254,7 @@ if ($PostgresMode -eq "Full") {
         Write-Step "Inizializzazione data directory PostgreSQL"
         $initdb = Join-Path $PgDir "pgsql\bin\initdb.exe"
         $pwFile = Join-Path $downloadsDir "pg_superuser_pwfile.tmp"
-        Set-Content -NoNewline -Path $pwFile -Value $pgSuperuserPassword
+        Set-FileContentNoNewline -Path $pwFile -Value $pgSuperuserPassword
         & $initdb -D $PgDataDir -U postgres --pwfile=$pwFile --encoding=UTF8 --auth=trust | Write-Host
         Remove-Item $pwFile
         Write-Ok "Data directory creata in $PgDataDir"
@@ -283,7 +283,7 @@ Write-Step "Creazione database applicativo"
 $env:PGPASSWORD = $pgSuperuserPassword
 $appPasswordFile = Join-Path $SecretsDir "pg_app_password.txt"
 if (-not (Test-Path $appPasswordFile)) {
-    New-RandomSecret | Set-Content -NoNewline $appPasswordFile
+    New-RandomSecret | Set-FileContentNoNewline $appPasswordFile
 }
 $appPassword = Get-Content $appPasswordFile -Raw
 
@@ -330,12 +330,26 @@ if ($envAlreadyConfigured -and -not $paramsGivenExplicitly) {
         Write-WarnStep "La porta $backendPort risulta gia' in uso da un altro programma (es. IIS) - scegline un'altra."
     }
 
+    # Rilevata qui (non solo nel riepilogo finale) per poterla proporre come
+    # default nella domanda sulla raggiungibilita' in rete: piu' concreto di un
+    # generico "si/no", e l'utente vede subito l'indirizzo che verra' usato.
+    $detectedIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" } | Select-Object -First 1).IPAddress
+
     if ($interactive) {
-        $answer = Read-Host "Raggiungibile anche da altre macchine della rete, non solo da questo PC? [s/N]"
-        $ExposeNetwork = $answer -match '^[sS]'
+        if ($detectedIp) {
+            $answer = Read-Host "Indirizzo su cui rendere raggiungibile il backend [invio per $detectedIp - raggiungibile anche dalla rete; scrivere '127.0.0.1' o 'localhost' per limitarlo a questo PC]"
+            $ExposeNetwork = -not ($answer.Trim() -match '^(127\.0\.0\.1|localhost)$')
+        } else {
+            $answer = Read-Host "Raggiungibile anche da altre macchine della rete, non solo da questo PC? [s/N]"
+            $ExposeNetwork = $answer -match '^[sS]'
+        }
     }
     $backendHost = if ($ExposeNetwork) { "0.0.0.0" } else { "127.0.0.1" }
-    Write-Ok "Backend su $backendHost`:$backendPort"
+    if ($ExposeNetwork -and $detectedIp) {
+        Write-Ok "Backend su 0.0.0.0:$backendPort (raggiungibile anche su $detectedIp`:$backendPort)"
+    } else {
+        Write-Ok "Backend su $backendHost`:$backendPort"
+    }
 
     if ($interactive -and -not $Https.IsPresent) {
         $answer = Read-Host "Usare HTTPS invece di HTTP? [s/N]"
@@ -385,7 +399,7 @@ if ($backendHost -eq "0.0.0.0") {
 Write-Step "Configurazione backend"
 $jwtSecretFile = Join-Path $SecretsDir "jwt_secret.txt"
 if (-not (Test-Path $jwtSecretFile)) {
-    New-RandomSecret -Length 48 | Set-Content -NoNewline $jwtSecretFile
+    New-RandomSecret -Length 48 | Set-FileContentNoNewline $jwtSecretFile
 }
 $jwtSecret = Get-Content $jwtSecretFile -Raw
 $scheme = if ($sslCertPath) { "https" } else { "http" }
@@ -417,7 +431,7 @@ try {
 Write-Step "Utente amministratore"
 $adminPasswordFile = Join-Path $SecretsDir "admin_password.txt"
 if (-not (Test-Path $adminPasswordFile)) {
-    New-RandomSecret -Length 16 | Set-Content -NoNewline $adminPasswordFile
+    New-RandomSecret -Length 16 | Set-FileContentNoNewline $adminPasswordFile
 }
 $adminPassword = Get-Content $adminPasswordFile -Raw
 Push-Location (Join-Path $ProjectRoot "backend")

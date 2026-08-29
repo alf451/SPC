@@ -7,12 +7,12 @@ Due sistemi operativi supportati, e per ciascuno **tre modalità di rete** indip
 
 ## Le tre modalità di rete (valgono su entrambi i sistemi operativi)
 
-Durante l'installazione (`install.cmd`/`install.sh`) vengono chieste due cose: **la porta** (utile se qualcos'altro, es. IIS, occupa già la 8000) e **se il backend deve essere raggiungibile anche da altre macchine**. Da queste due risposte nascono le tre modalità:
+Durante l'installazione (`install.cmd`/`install.sh`) vengono chieste due cose: **la porta** (utile se qualcos'altro, es. IIS, occupa già la 8000) e **su quale indirizzo il backend deve rispondere**. Su Windows quest'ultima domanda propone come default l'IP di rete rilevato automaticamente sulla macchina (basta premere invio per accettarlo) — scrivere `127.0.0.1` o `localhost` per limitare l'accesso a questo solo PC. Da queste due risposte nascono le tre modalità:
 
-| Modalità | Quando serve | Cosa succede | Comando |
+| Modalità | Quando serve | Cosa succede | Risposta alla domanda sull'indirizzo |
 |---|---|---|---|
-| **1. Locale** | Un solo PC, backend ed Edge Agent sulla stessa macchina | `http://127.0.0.1:PORTA`, raggiungibile solo da questo PC | Porta a piacere, "no" alla domanda sulla rete |
-| **2. Intranet (LAN)** | Edge Agent su altre postazioni della stessa officina/rete | `http://NOME-PC-o-IP:PORTA`, raggiungibile da tutta la rete locale | Porta a piacere, "sì" alla domanda sulla rete — aperta anche la porta sul firewall |
+| **1. Locale** | Un solo PC, backend ed Edge Agent sulla stessa macchina | `http://127.0.0.1:PORTA`, raggiungibile solo da questo PC | `127.0.0.1` o `localhost` |
+| **2. Intranet (LAN)** | Edge Agent su altre postazioni della stessa officina/rete | `http://IP-o-NOME-PC:PORTA`, raggiungibile da tutta la rete locale | Invio (accetta l'IP proposto) — aperta anche la porta sul firewall |
 | **3. HTTPS** | Come sopra ma con traffico cifrato — obbligatorio se il backend è raggiungibile anche da fuori la rete fidata | `https://...`, con un certificato auto-firmato (LAN) o vero (uso pubblico, vedi sezione dedicata sotto) | Come sopra, poi "sì" a "Usare HTTPS?" |
 
 Le modalità 1 e 2 sono completamente automatiche e non richiedono nulla oltre a rispondere alle domande. La modalità 3 con certificato **auto-firmato** (per LAN) è automatica; con certificato **pubblico vero** (per esposizione su internet) richiede alcuni prerequisiti che l'installer non può procurarsi da solo — vedi [HTTPS con certificato pubblico](#https-con-certificato-pubblico-esposizione-su-internet) in fondo a questa pagina.
@@ -42,7 +42,7 @@ Pensata per essere eseguita **sullo stesso PC dove gira MeasurLink**, in paralle
 4. Attendere (qualche minuto, scarica ed estrae Python e, a seconda della scelta fatta al passo successivo, PostgreSQL)
 5. Quando chiede la **modalità PostgreSQL**: vedi la sezione dedicata [PostgreSQL: portable o completo](#postgresql-portable-o-completo) subito sotto — invio per "portable" (il default, zero admin)
 6. Quando chiede la **porta**: premere Invio per usare la 8000, oppure digitarne un'altra se sospetti un conflitto (es. con IIS)
-7. Quando chiede se **raggiungibile da altre macchine della rete**: rispondere "s" solo se serve collegare Edge Agent su altre postazioni (vedi [le tre modalità](#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi) sopra)
+7. Quando chiede **su quale indirizzo rendere raggiungibile il backend**: premere invio per accettare l'IP di rete proposto (serve per collegare Edge Agent su altre postazioni), oppure scrivere `127.0.0.1`/`localhost` per restare raggiungibili solo da questo PC (vedi [le tre modalità](#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi) sopra)
 8. Quando chiede se usare **HTTPS**: rispondere "s" solo se serve traffico cifrato (consigliato se si è risposto "s" al punto precedente e la rete non è completamente fidata)
 9. Alla fine viene mostrata la password dell'utente `admin` — **annotarla**, serve per accedere, insieme all'indirizzo esatto da usare (cambia in base alle risposte date sopra)
 
@@ -84,7 +84,7 @@ Doppio click su **`uninstall.cmd`** → conferma scrivendo `si`. Rimuove tutto (
 
 - **"impossibile eseguire script"**: usare sempre i file `.cmd` (non i `.ps1` direttamente) — i `.cmd` aggirano l'execution policy di PowerShell senza bisogno di cambiarla a livello di sistema
 - **Il backend non risponde dopo `start.cmd`**: controllare `runtime\logs\backend.err.log`
-- **I download falliscono** (tipico su Windows Server datati): `common.ps1` forza già TLS 1.2, ma se il problema persiste verificare manualmente che TLS 1.2 sia abilitato in `certutil -v -store My` o negli aggiornamenti di sistema
+- **I download falliscono con "Connessione sottostante chiusa: errore imprevisto durante un'operazione di invio"** (riscontrato su un Windows Server 2012 di test): non è mancanza di TLS 1.2 (`common.ps1` lo forza già) ma più spesso un limite sui **cifrari** che il .NET Framework installato offre — il sito di destinazione rifiuta la connessione a metà. Lo script tenta da solo un metodo alternativo (`bitsadmin`, che usa lo stack di rete del sistema operativo invece di .NET) prima di arrendersi; se fallisce anche quello, vedi [Installazione offline](#installazione-offline--senza-download) qui sotto.
 - **Serve ricominciare da capo**: `uninstall.cmd` poi `install.cmd`
 - **"Non sono riuscito a creare la regola firewall"** (modalità intranet/HTTPS): serve una sessione PowerShell **da amministratore** solo per questo passo specifico — lo script stampa il comando esatto da incollare in una finestra PowerShell aperta con "Esegui come amministratore". Il resto dell'installazione non richiede privilegi elevati.
 - **Il browser mostra "connessione non sicura"** con HTTPS: atteso con un certificato auto-firmato (modalità LAN) — il traffico è comunque cifrato, si può procedere/accettare l'eccezione. Se invece ci si aspettava un certificato pubblico riconosciuto, vedi la sezione sotto.

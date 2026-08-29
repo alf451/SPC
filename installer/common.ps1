@@ -61,6 +61,28 @@ function Assert-Dir {
     }
 }
 
+function Invoke-DownloadFileViaBits {
+    # bitsadmin.exe usa WinHTTP (lo stack di rete del sistema operativo), non
+    # lo stack .NET/Schannel usato da Invoke-WebRequest: su Windows datati (es.
+    # Server 2012 originale) capita che .NET Framework offra solo cifrari TLS
+    # deboli anche dopo aver forzato il protocollo a Tls12 (il CDN di destinazione
+    # allora chiude la connessione a meta' invio, "Errore imprevisto durante
+    # un'operazione di invio") mentre WinHTTP/Schannel del sistema operativo
+    # negozia correttamente. bitsadmin e' presente di serie da Windows XP SP2 in poi.
+    param([string]$Url, [string]$Destination)
+    $bitsadmin = Join-Path $env:WINDIR "System32\bitsadmin.exe"
+    if (-not (Test-Path $bitsadmin)) { return $false }
+    $jobName = "leank-spc-dl-$([Guid]::NewGuid().ToString('N').Substring(0, 8))"
+    try {
+        Write-Host "   Tentativo alternativo via bitsadmin (WinHTTP di sistema anziche' .NET)..."
+        & $bitsadmin /transfer $jobName /download /priority foreground $Url $Destination | Out-Null
+        return (Test-Path $Destination) -and ((Get-Item $Destination).Length -gt 0)
+    } catch {
+        Write-WarnStep "bitsadmin fallito anch'esso: $($_.Exception.Message)"
+        return $false
+    }
+}
+
 function Invoke-DownloadFile {
     param(
         [string]$Url,
@@ -72,6 +94,20 @@ function Invoke-DownloadFile {
         return
     }
     Assert-Dir (Split-Path -Parent $Destination)
+
+    # Pacchetto offline: se qualcuno ha gia' scaricato questo file (es. da un
+    # PC con internet funzionante) e lo ha messo in <progetto>\vendor\ con lo
+    # stesso nome, lo si riusa cosi' com'e' senza toccare la rete. Utile su
+    # macchine datate/isolate dove il download diretto non funziona (limiti
+    # TLS/cifrari di .NET Framework, o firewall aziendale) - vedi
+    # "Installazione offline" in docs/installazione.md per i nomi file esatti.
+    $vendorFile = Join-Path (Join-Path $ProjectRoot "vendor") (Split-Path -Leaf $Destination)
+    if (Test-Path $vendorFile) {
+        Copy-Item $vendorFile $Destination
+        Write-Ok "Copiato da vendor\ (nessun download necessario): $(Split-Path -Leaf $Destination)"
+        return
+    }
+
     for ($attempt = 1; $attempt -le $MaxRetries; $attempt++) {
         try {
             Write-Host "   Download ($attempt/$MaxRetries): $Url"
@@ -80,7 +116,15 @@ function Invoke-DownloadFile {
             return
         } catch {
             Write-WarnStep "Tentativo $attempt fallito: $($_.Exception.Message)"
-            if ($attempt -eq $MaxRetries) { throw }
+            if (Test-Path $Destination) { Remove-Item $Destination -ErrorAction SilentlyContinue }
+            if ($attempt -eq $MaxRetries) {
+                Write-WarnStep "Invoke-WebRequest continua a fallire (probabile limite di cifrari TLS del .NET Framework installato, tipico su Windows datati) - provo bitsadmin come alternativa"
+                if (Invoke-DownloadFileViaBits -Url $Url -Destination $Destination) {
+                    Write-Ok "Scaricato in $Destination (via bitsadmin)"
+                    return
+                }
+                throw "Download fallito sia con Invoke-WebRequest sia con bitsadmin da $Url. Cause probabili: TLS 1.2/cifrari moderni non supportati da questo Windows (frequente su Windows Server 2012 non aggiornato), oppure un firewall/proxy aziendale blocca l'uscita verso quell'indirizzo. Soluzione alternativa: scaricare il file manualmente da un altro PC con accesso a internet e copiarlo in '$Destination' - lo script lo usera' cosi' com'e' senza riscaricarlo (rieseguire poi install.ps1)."
+            }
             Start-Sleep -Seconds (3 * $attempt)
         }
     }
@@ -212,6 +256,24 @@ function Expand-ZipFile {
 
 function Test-IsAdministrator {
     ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Set-FileContentNoNewline {
+    # Sostituto di "Set-Content -NoNewline": quel parametro esiste solo da
+    # PowerShell 5.0 in poi. Su Windows Server 2012 "di fabbrica" (PowerShell
+    # 3.0/4.0) non c'e' e fallisce con "Impossibile trovare un parametro
+    # corrispondente al nome 'NoNewline'" - riscontrato dal vivo sulla macchina
+    # di test. System.IO.File.WriteAllText scrive il file senza andare a capo
+    # in fondo su qualunque versione di PowerShell/.NET Framework.
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string]$Path,
+        [Parameter(ValueFromPipeline = $true)]
+        [string]$Value
+    )
+    process {
+        [System.IO.File]::WriteAllText($Path, $Value)
+    }
 }
 
 function ConvertFrom-SecureStringToPlainText {

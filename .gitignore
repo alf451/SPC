@@ -9,5 +9,6 @@ edge-agent/outbox.sqlite3
 *.sqlite3
 .DS_Store
 runtime/
+vendor/
 
 *.docx
