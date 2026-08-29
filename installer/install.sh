@@ -71,18 +71,89 @@ fi
 echo "   OK: database '$PG_DB' pronto (utente '$PG_USER')"
 
 echo ""
+echo ">> Porta, raggiungibilità in rete e HTTPS"
+ENV_FILE="$PROJECT_ROOT/backend/.env"
+# Variabili d'ambiente per uso non interattivo/scriptato: PORT, EXPOSE_NETWORK
+# (si/no), HTTPS (si/no), SSL_CERT_FILE, SSL_KEY_FILE. Se non impostate e lo
+# script gira in un terminale, vengono chieste; altrimenti si usano i default.
+if [ -f "$ENV_FILE" ] && grep -q "^BACKEND_PORT=" "$ENV_FILE" && [ -z "${PORT:-}" ] && [ -z "${EXPOSE_NETWORK:-}" ] && [ -z "${HTTPS:-}" ]; then
+    BACKEND_PORT="$(grep '^BACKEND_PORT=' "$ENV_FILE" | cut -d= -f2)"
+    BACKEND_HOST="$(grep '^BACKEND_HOST=' "$ENV_FILE" | cut -d= -f2)"
+    SSL_CERT_PATH="$(grep '^BACKEND_SSL_CERTFILE=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || true)"
+    SSL_KEY_PATH="$(grep '^BACKEND_SSL_KEYFILE=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || true)"
+    echo "   Configurazione già presente: ${BACKEND_HOST}:${BACKEND_PORT} (invariata)"
+else
+    if [ -z "${PORT:-}" ] && [ -t 0 ]; then
+        read -r -p "Porta del backend [invio per 8000]: " BACKEND_PORT
+        BACKEND_PORT="${BACKEND_PORT:-8000}"
+    else
+        BACKEND_PORT="${PORT:-8000}"
+    fi
+    if (echo > "/dev/tcp/127.0.0.1/$BACKEND_PORT") 2>/dev/null; then
+        echo "   ATTENZIONE: la porta $BACKEND_PORT risulta già in uso da un altro programma - sceglierne un'altra."
+    fi
+
+    if [ -z "${EXPOSE_NETWORK:-}" ] && [ -t 0 ]; then
+        read -r -p "Raggiungibile anche da altre macchine della rete, non solo da questa? [s/N]: " ans
+        EXPOSE_NETWORK="$ans"
+    fi
+    if [[ "${EXPOSE_NETWORK:-}" =~ ^[sSyY] ]]; then
+        BACKEND_HOST="0.0.0.0"
+    else
+        BACKEND_HOST="127.0.0.1"
+    fi
+    echo "   Backend su ${BACKEND_HOST}:${BACKEND_PORT}"
+
+    if [ "$BACKEND_HOST" = "0.0.0.0" ] && command -v ufw >/dev/null 2>&1 && sudo ufw status | grep -q "Status: active"; then
+        sudo ufw allow "${BACKEND_PORT}/tcp" >/dev/null
+        echo "   OK: porta $BACKEND_PORT aperta su ufw"
+    fi
+
+    if [ -z "${HTTPS:-}" ] && [ -t 0 ]; then
+        read -r -p "Usare HTTPS invece di HTTP? [s/N]: " ans
+        HTTPS="$ans"
+    fi
+    SSL_CERT_PATH=""
+    SSL_KEY_PATH=""
+    if [[ "${HTTPS:-}" =~ ^[sSyY] ]] || [ -n "${SSL_CERT_FILE:-}" ]; then
+        SSL_CERT_PATH="$SECRETS_DIR/backend_cert.pem"
+        SSL_KEY_PATH="$SECRETS_DIR/backend_key.pem"
+        if [ -n "${SSL_CERT_FILE:-}" ]; then
+            cp "$SSL_CERT_FILE" "$SSL_CERT_PATH"
+            cp "$SSL_KEY_FILE" "$SSL_KEY_PATH"
+            echo "   OK: certificato fornito copiato in $SECRETS_DIR"
+        else
+            echo "   Generazione certificato auto-firmato (per LAN - non per esposizione pubblica)"
+            HOSTNAME_VAL="$(hostname)"
+            IPS="$(hostname -I 2>/dev/null || true)"
+            (cd "$PROJECT_ROOT/backend" && "$VENV_DIR/bin/python" generate_cert.py "$SSL_CERT_PATH" "$SSL_KEY_PATH" "$HOSTNAME_VAL" $IPS)
+        fi
+    fi
+fi
+
+echo ""
 echo ">> Configurazione backend"
 JWT_SECRET_FILE="$SECRETS_DIR/jwt_secret.txt"
 [ -f "$JWT_SECRET_FILE" ] || random_secret 48 > "$JWT_SECRET_FILE"
 JWT_SECRET="$(cat "$JWT_SECRET_FILE")"
 
+SCHEME="http"
+SSL_ENV_LINES=""
+if [ -n "$SSL_CERT_PATH" ]; then
+    SCHEME="https"
+    SSL_ENV_LINES=$'BACKEND_SSL_CERTFILE='"$SSL_CERT_PATH"$'\nBACKEND_SSL_KEYFILE='"$SSL_KEY_PATH"
+fi
+
 cat > "$PROJECT_ROOT/backend/.env" <<EOF
 DATABASE_URL=postgresql+asyncpg://${PG_USER}:${APP_PASSWORD}@127.0.0.1:5432/${PG_DB}
+BACKEND_HOST=${BACKEND_HOST}
+BACKEND_PORT=${BACKEND_PORT}
+${SSL_ENV_LINES}
 JWT_SECRET=${JWT_SECRET}
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=14
-CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:8000,null
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:${BACKEND_PORT},https://127.0.0.1:${BACKEND_PORT},null
 EOF
 echo "   Scritto backend/.env"
 
@@ -107,3 +178,13 @@ echo "Per disinstallare:       installer/uninstall.sh"
 echo ""
 echo "Login iniziale: utente 'admin', password in $ADMIN_PASSWORD_FILE"
 echo "Per farlo partire da solo al boot (deployment permanente): vedi installer/leank-spc.service"
+echo ""
+if [ -n "$SSL_CERT_PATH" ]; then
+    echo "HTTPS attivo con certificato auto-firmato: il browser mostrerà un avviso 'connessione non sicura' - è atteso, il traffico è comunque cifrato."
+fi
+if [ "$BACKEND_HOST" = "0.0.0.0" ]; then
+    echo "Backend raggiungibile da questa macchina su:  ${SCHEME}://127.0.0.1:${BACKEND_PORT}/docs"
+    echo "Backend raggiungibile da altre postazioni su: ${SCHEME}://$(hostname):${BACKEND_PORT}/docs (o via IP: $(hostname -I 2>/dev/null))"
+else
+    echo "Backend: ${SCHEME}://127.0.0.1:${BACKEND_PORT}/docs (solo da questa macchina)"
+fi

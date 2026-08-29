@@ -24,16 +24,23 @@ if (Test-PostgresRunning) {
     Write-Ok "Avviato"
 }
 
+$backendPort = Get-BackendPort
+$backendHost = Get-BackendHost
+$scheme = Get-BackendScheme
+
 Write-Step "Backend FastAPI"
 if (Test-BackendRunning) {
-    Write-Ok "Gia' in esecuzione su http://127.0.0.1:$BackendPort"
+    Write-Ok "Gia' in esecuzione su $scheme`://127.0.0.1:$backendPort"
 } else {
     $backendDir = Join-Path $ProjectRoot "backend"
     $pidFile = Join-Path $RuntimeDir "backend.pid"
     $logFile = Join-Path $LogsDir "backend.log"
 
+    # "run.py" legge BACKEND_HOST/BACKEND_PORT da backend/.env: non serve
+    # passarli qui, cosi' questo script non deve conoscere la scelta fatta
+    # in fase di installazione.
     $process = Start-Process -FilePath (Get-PythonExe) `
-        -ArgumentList "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "$BackendPort" `
+        -ArgumentList "run.py" `
         -WorkingDirectory $backendDir `
         -RedirectStandardOutput $logFile `
         -RedirectStandardError (Join-Path $LogsDir "backend.err.log") `
@@ -55,5 +62,8 @@ if (Test-BackendRunning) {
 }
 
 Write-Host ""
-Write-Host "Backend pronto: http://127.0.0.1:$BackendPort/docs" -ForegroundColor Green
+Write-Host "Backend pronto: $scheme`://127.0.0.1:$backendPort/docs" -ForegroundColor Green
 Write-Host "(Swagger UI - utile per provare le API senza scrivere codice)"
+if ($backendHost -eq "0.0.0.0") {
+    Write-Host "Raggiungibile anche da altre postazioni su: $scheme`://$env:COMPUTERNAME`:$backendPort/docs" -ForegroundColor Green
+}

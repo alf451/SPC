@@ -6,6 +6,7 @@ alembic>=1.13
 pydantic>=2.9
 pydantic-settings>=2.5
 python-jose[cryptography]>=3.3
+cryptography>=42.0
 bcrypt>=4.0
 python-multipart>=0.0.9
 websockets>=13.0

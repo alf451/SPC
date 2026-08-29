@@ -23,9 +23,10 @@ $script:PgDataDir = Join-Path $RuntimeDir "pgdata"
 $script:LogsDir = Join-Path $RuntimeDir "logs"
 $script:SecretsDir = Join-Path $RuntimeDir "secrets"
 $script:PgPort = 5433
-$script:BackendPort = 8000
+$script:BackendPortDefault = 8000
 $script:PgDbName = "leank_spc"
 $script:PgUser = "leank_spc"
+$script:EnvFile = Join-Path $ProjectRoot "backend\.env"
 
 $script:PythonEmbedUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip"
 $script:PgBinariesUrl = "https://get.enterprisedb.com/postgresql/postgresql-17.10-2-windows-x64-binaries.zip"
@@ -100,13 +101,82 @@ function Test-PostgresRunning {
     return $LASTEXITCODE -eq 0
 }
 
-function Test-BackendRunning {
+function Get-EnvValue {
+    # Legge KEY=valore da backend/.env. Ritorna $Default se il file o la
+    # chiave non esistono (es. primo avvio di install.ps1, prima che scriva .env).
+    param([string]$Key, [string]$Default)
+    if (-not (Test-Path $EnvFile)) { return $Default }
+    $line = Get-Content $EnvFile | Where-Object { $_ -match "^$Key=" } | Select-Object -First 1
+    if (-not $line) { return $Default }
+    return ($line -split '=', 2)[1].Trim()
+}
+
+function Get-BackendPort {
+    Get-EnvValue -Key "BACKEND_PORT" -Default $BackendPortDefault
+}
+
+function Get-BackendHost {
+    Get-EnvValue -Key "BACKEND_HOST" -Default "127.0.0.1"
+}
+
+function Get-BackendScheme {
+    if (Get-EnvValue -Key "BACKEND_SSL_CERTFILE" -Default "") { "https" } else { "http" }
+}
+
+function Test-PortInUse {
+    param([int]$Port)
     try {
-        $response = Invoke-WebRequest -Uri "http://127.0.0.1:$BackendPort/health" -UseBasicParsing -TimeoutSec 2
+        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
+        $listener.Start()
+        $listener.Stop()
+        return $false
+    } catch {
+        return $true
+    }
+}
+
+function Test-BackendRunning {
+    # Controlla sempre via 127.0.0.1: funziona sia che il backend ascolti solo
+    # in locale sia che ascolti anche in rete (0.0.0.0 accetta comunque
+    # connessioni dallo stesso PC su 127.0.0.1).
+    $port = Get-BackendPort
+    $scheme = Get-BackendScheme
+
+    if ($scheme -eq "https") {
+        Enable-TrustAllCertificates
+    }
+    try {
+        $response = Invoke-WebRequest -Uri "$scheme`://127.0.0.1:$port/health" -UseBasicParsing -TimeoutSec 2
         return $response.StatusCode -eq 200
     } catch {
         return $false
     }
+}
+
+function Enable-TrustAllCertificates {
+    # Windows PowerShell 5.1 non ha "-SkipCertificateCheck" (solo PS7+): per
+    # verificare un backend HTTPS con certificato auto-firmato serve disattivare
+    # la validazione, altrimenti Invoke-WebRequest la rifiuta sempre (anche
+    # verso 127.0.0.1). Assegnare uno scriptblock a
+    # ServerCertificateValidationCallback NON funziona in modo affidabile su
+    # PS 5.1 ("Spazio di esecuzione non disponibile": il .NET Framework invoca
+    # il callback su un thread senza runspace PowerShell) - la via collaudata e'
+    # la vecchia interfaccia ICertificatePolicy (deprecata ma funzionante),
+    # assegnando un'istanza di una classe vera invece di un delegate.
+    # Impostazione valida per l'intero processo: adatto per uno script
+    # installer/start "usa e getta", non da fare in un'app di lunga durata.
+    if (-not ("LeankSpcTrustAllCertsPolicy" -as [type])) {
+        Add-Type @"
+using System.Net;
+using System.Security.Cryptography.X509Certificates;
+public class LeankSpcTrustAllCertsPolicy : ICertificatePolicy {
+    public bool CheckValidationResult(ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem) {
+        return true;
+    }
+}
+"@
+    }
+    [System.Net.ServicePointManager]::CertificatePolicy = New-Object LeankSpcTrustAllCertsPolicy
 }
 
 function Assert-LastExitCode {

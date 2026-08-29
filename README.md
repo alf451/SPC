@@ -34,7 +34,7 @@ installer\stop.cmd      # per fermare tutto
 installer\uninstall.cmd # per rimuovere tutto senza lasciare traccia
 ```
 
-Nessun privilegio di amministratore, nessuna installazione di sistema, nessun servizio Windows: tutto vive in `runtime\` (cancellabile in ogni momento).
+Nessun privilegio di amministratore, nessuna installazione di sistema, nessun servizio Windows: tutto vive in `runtime\` (cancellabile in ogni momento). L'installer chiede porta, raggiungibilità in rete e HTTPS — vedi [le tre modalità di rete](docs/installazione.md#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi) in `docs/installazione.md`.
 
 ## Avvio rapido — Ubuntu/Debian, deployment permanente
 
@@ -83,8 +83,9 @@ Vedi [`edge-agent/README.md`](edge-agent/README.md) per come ottenere il token e
 - Import da MeasurLink: eseguito per davvero contro il DB del cliente (303 Part, 351 Routine, 6394 Feature, 316 strumenti, 4826 calibrazioni) — idempotenza verificata rilanciandolo due volte.
 - Pannello admin: login, CRUD stazioni/DAQ, test di collegamento (con Edge Agent offline → messaggio corretto), avvio import + monitor, tutto verificato in un browser reale.
 - API commesse/stampi (v0.2): creazione idempotente via `external_system`+`external_id`, tools con posizioni auto-generate, verificate via chiamate reali.
+- Le tre modalità di rete (v0.2): porta custom, esposizione LAN con regola firewall, HTTPS con certificato auto-firmato — installate e verificate con login + chiamate API reali su tutte e tre. Un altro bug trovato nel farlo: `ServerCertificateValidationCallback` non funziona in modo affidabile su PowerShell 5.1 (nessun runspace nel thread .NET che lo invoca) — risolto con la vecchia interfaccia `ICertificatePolicy`, collaudata.
 
-Non ancora verificato: gli script Ubuntu (nessuna macchina Linux disponibile in questa sessione — la logica ricalca quella Windows già validata, ma va provata alla prima occasione), il collegamento a strumenti Digimatic fisici veri (finora solo sorgente `mock`).
+Non ancora verificato: gli script Ubuntu (nessuna macchina Linux disponibile in questa sessione — la logica ricalca quella Windows già validata, ma va provata alla prima occasione), il collegamento a strumenti Digimatic fisici veri (finora solo sorgente `mock`), il percorso HTTPS con certificato pubblico/Caddy (solo documentato, richiede un dominio reale per essere testato).
 
 Resta da fare (vedi TODO nel codice):
 

@@ -1,9 +1,23 @@
 # Guida installazione
 
-Due modalità, a seconda dello scopo:
+Due sistemi operativi supportati, e per ciascuno **tre modalità di rete** indipendenti — la scelta si fa rispondendo a due domande durante l'installazione, non modificando file a mano:
 
 - **[Windows — modalità pilota](#windows--modalità-pilota)**: per affiancare MeasurLink durante un test sul campo, sullo stesso PC del reparto qualità. Zero costi, zero admin, tutto reversibile.
 - **[Ubuntu/Debian — deployment permanente](#ubuntudebian--deployment-permanente)**: per un server dedicato (proprio o del cliente), pensato per restare attivo stabilmente, non per convivere temporaneamente con qualcos'altro.
+
+## Le tre modalità di rete (valgono su entrambi i sistemi operativi)
+
+Durante l'installazione (`install.cmd`/`install.sh`) vengono chieste due cose: **la porta** (utile se qualcos'altro, es. IIS, occupa già la 8000) e **se il backend deve essere raggiungibile anche da altre macchine**. Da queste due risposte nascono le tre modalità:
+
+| Modalità | Quando serve | Cosa succede | Comando |
+|---|---|---|---|
+| **1. Locale** | Un solo PC, backend ed Edge Agent sulla stessa macchina | `http://127.0.0.1:PORTA`, raggiungibile solo da questo PC | Porta a piacere, "no" alla domanda sulla rete |
+| **2. Intranet (LAN)** | Edge Agent su altre postazioni della stessa officina/rete | `http://NOME-PC-o-IP:PORTA`, raggiungibile da tutta la rete locale | Porta a piacere, "sì" alla domanda sulla rete — aperta anche la porta sul firewall |
+| **3. HTTPS** | Come sopra ma con traffico cifrato — obbligatorio se il backend è raggiungibile anche da fuori la rete fidata | `https://...`, con un certificato auto-firmato (LAN) o vero (uso pubblico, vedi sezione dedicata sotto) | Come sopra, poi "sì" a "Usare HTTPS?" |
+
+Le modalità 1 e 2 sono completamente automatiche e non richiedono nulla oltre a rispondere alle domande. La modalità 3 con certificato **auto-firmato** (per LAN) è automatica; con certificato **pubblico vero** (per esposizione su internet) richiede alcuni prerequisiti che l'installer non può procurarsi da solo — vedi [HTTPS con certificato pubblico](#https-con-certificato-pubblico-esposizione-su-internet) in fondo a questa pagina.
+
+**Non sei sicuro di quale scegliere?** Se hai un solo PC e un solo strumento collegato: modalità 1. Se hai più postazioni in officina che devono mandare misure allo stesso backend: modalità 2. Se il backend deve essere raggiungibile da fuori la rete aziendale (es. accesso da remoto): modalità 3 con certificato pubblico — chiedi consiglio prima di procedere, ha implicazioni di sicurezza da valutare caso per caso.
 
 ---
 
@@ -26,15 +40,18 @@ Pensata per essere eseguita **sullo stesso PC dove gira MeasurLink**, in paralle
 2. Aprire la cartella `leank-spc\installer`
 3. Doppio click su **`install.cmd`**
 4. Attendere (qualche minuto, scarica ed estrae Python e PostgreSQL, crea il database)
-5. Alla fine viene mostrata la password dell'utente `admin` — **annotarla**, serve per accedere
+5. Quando chiede la **porta**: premere Invio per usare la 8000, oppure digitarne un'altra se sospetti un conflitto (es. con IIS)
+6. Quando chiede se **raggiungibile da altre macchine della rete**: rispondere "s" solo se serve collegare Edge Agent su altre postazioni (vedi [le tre modalità](#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi) sopra)
+7. Quando chiede se usare **HTTPS**: rispondere "s" solo se serve traffico cifrato (consigliato se si è risposto "s" al punto precedente e la rete non è completamente fidata)
+8. Alla fine viene mostrata la password dell'utente `admin` — **annotarla**, serve per accedere, insieme all'indirizzo esatto da usare (cambia in base alle risposte date sopra)
 
-Lo script è rieseguibile in sicurezza: se lo si lancia di nuovo, salta i passi già completati.
+Lo script è rieseguibile in sicurezza: se lo si lancia di nuovo senza specificare parametri, ripropone le stesse domande solo se non ha già una configurazione salvata — altrimenti riparte con quella esistente senza chiedere nulla.
 
 ### Uso quotidiano
 
 - **Avviare** (a ogni riavvio del PC o dopo aver fermato tutto): doppio click su **`start.cmd`**
 - **Fermare**: doppio click su **`stop.cmd`**
-- Il backend risponde su [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) (Swagger UI, per provare le API dal browser) e il [pannello admin](../admin/index.html) permette di configurare stazioni/DAQ e lanciare l'import da MeasurLink senza scrivere codice
+- Il backend risponde all'indirizzo mostrato alla fine dell'installazione (es. `http://127.0.0.1:8000/docs` in modalità locale, `https://NOME-PC:8443/docs` in modalità HTTPS — Swagger UI, per provare le API dal browser) e il [pannello admin](../admin/index.html) permette di configurare stazioni/DAQ e lanciare l'import da MeasurLink senza scrivere codice
 
 ### Disinstallazione
 
@@ -43,7 +60,7 @@ Doppio click su **`uninstall.cmd`** → conferma scrivendo `si`. Rimuove tutto (
 ### Cosa NON fa questa modalità (di proposito)
 
 - Non si avvia da sola al riavvio del PC (va rilanciato `start.cmd` manualmente) — corretto per una fase di test dove non si vuole competere con MeasurLink in modo permanente
-- Non è raggiungibile dalla rete (PostgreSQL e backend ascoltano solo su `127.0.0.1`, cioè solo dallo stesso PC) — per collegare l'Edge Agent da un'altra postazione della stessa officina serve un passo successivo (aprire la porta sul firewall e cambiare `listen_addresses`), volutamente non fatto in questa fase pilota
+- **PostgreSQL** resta comunque raggiungibile solo su `127.0.0.1` anche scegliendo la modalità "intranet" per il backend — solo il backend (le API) diventa raggiungibile dalla rete, il database resta privato a questo PC in ogni caso
 - Non installa un servizio Windows: quando si è convinti che leank-spc debba restare attivo in modo permanente, valutare il passaggio a Ubuntu (sotto)
 
 ### Risoluzione problemi
@@ -52,6 +69,8 @@ Doppio click su **`uninstall.cmd`** → conferma scrivendo `si`. Rimuove tutto (
 - **Il backend non risponde dopo `start.cmd`**: controllare `runtime\logs\backend.err.log`
 - **I download falliscono** (tipico su Windows Server datati): `common.ps1` forza già TLS 1.2, ma se il problema persiste verificare manualmente che TLS 1.2 sia abilitato in `certutil -v -store My` o negli aggiornamenti di sistema
 - **Serve ricominciare da capo**: `uninstall.cmd` poi `install.cmd`
+- **"Non sono riuscito a creare la regola firewall"** (modalità intranet/HTTPS): serve una sessione PowerShell **da amministratore** solo per questo passo specifico — lo script stampa il comando esatto da incollare in una finestra PowerShell aperta con "Esegui come amministratore". Il resto dell'installazione non richiede privilegi elevati.
+- **Il browser mostra "connessione non sicura"** con HTTPS: atteso con un certificato auto-firmato (modalità LAN) — il traffico è comunque cifrato, si può procedere/accettare l'eccezione. Se invece ci si aspettava un certificato pubblico riconosciuto, vedi la sezione sotto.
 
 ---
 
@@ -73,13 +92,19 @@ chmod +x install.sh start.sh stop.sh uninstall.sh   # se i permessi non sono gi�
 ./install.sh
 ```
 
-Chiede la password sudo se mancano pacchetti (`python3`, `python3-venv`, `postgresql`). Alla fine mostra la password dell'utente `admin` — annotarla.
+Chiede la password sudo se mancano pacchetti (`python3`, `python3-venv`, `postgresql`), poi le stesse tre domande della versione Windows (porta, raggiungibilità in rete, HTTPS — vedi [le tre modalità](#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi) sopra). Alla fine mostra la password dell'utente `admin` e l'indirizzo esatto da usare — annotarli entrambi.
+
+Per un'installazione senza domande (script/automazioni), impostare le variabili prima di lanciarlo:
+
+```bash
+PORT=8443 EXPOSE_NETWORK=si HTTPS=si ./install.sh
+```
 
 ### Uso quotidiano
 
 - **Avviare**: `./installer/start.sh` (PostgreSQL è già gestito da systemd, si avvia da solo col sistema)
 - **Fermare**: `./installer/stop.sh` (ferma solo il backend, non PostgreSQL)
-- Backend: `http://127.0.0.1:8000/docs`
+- Backend: indirizzo mostrato alla fine dell'installazione
 
 ### Avvio automatico al boot (opzionale)
 
@@ -110,3 +135,44 @@ Vedi [`edge-agent/README.md`](../edge-agent/README.md): copiare `edge-agent/conf
 ## Importare la configurazione da MeasurLink
 
 Vedi [`import-measurlink/README.md`](../import-measurlink/README.md) o, più comodo, la scheda **Import MeasurLink** del [pannello admin](../admin/index.html) — permette di testare la connessione, avviare una prova (dry-run) e seguire l'avanzamento in tempo reale prima di lanciare l'import vero.
+
+---
+
+## HTTPS con certificato pubblico (esposizione su internet)
+
+Il certificato **auto-firmato** generato in automatico dall'installer va bene per una LAN aziendale fidata, ma **non per esporre il backend su internet**: nessun browser/client si fiderà di un certificato non firmato da una Certification Authority riconosciuta, e c'è il rischio concreto che qualcuno (te compreso, in futuro, per fretta) disabiliti la verifica del certificato altrove per "far sparire l'avviso" — a quel punto la cifratura non protegge più da niente.
+
+Per un vero certificato pubblico servono tre cose che **nessuno script può procurarti da solo**, perché non sono sotto il controllo di questa macchina:
+
+1. **Un nome a dominio** (es. `spc.tuaazienda.it`) che punti all'IP pubblico del server
+2. **La porta 443 raggiungibile dall'esterno** — va aperta sul router/firewall perimetrale dell'azienda, non solo sul firewall Windows/Linux di questa macchina (passo che va fatto da chi amministra la rete aziendale)
+3. Un modo per **dimostrare il controllo del dominio** a una Certification Authority (Let's Encrypt è gratuita e automatizzata, è la scelta di gran lunga più comune)
+
+Una volta disponibili questi tre elementi, il modo più semplice — su entrambi i sistemi operativi — è mettere **[Caddy](https://caddyserver.com/)** davanti al backend: è un web server che ottiene e rinnova da solo i certificati Let's Encrypt, con una configurazione di poche righe.
+
+**Ubuntu:**
+
+```bash
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install caddy
+```
+
+Poi in `/etc/caddy/Caddyfile`:
+
+```
+spc.tuaazienda.it {
+    reverse_proxy 127.0.0.1:8000
+}
+```
+
+```bash
+sudo systemctl reload caddy
+```
+
+Da questo momento leank-spc **resta in modalità locale (HTTP, 127.0.0.1)** — è Caddy a parlare HTTPS con il mondo esterno e a inoltrare in chiaro solo verso il backend sulla stessa macchina, che non serve più esporre direttamente né in HTTPS né in rete.
+
+**Windows**: Caddy è disponibile anche come singolo eseguibile per Windows ([download](https://caddyserver.com/download)) con lo stesso principio (`Caddyfile` + `caddy run`), ma per un uso permanente su Windows è più naturale valutare il passaggio a Ubuntu per questo scenario specifico (rinnovo certificati via systemd timer, gestione più matura).
+
+Se preferisci non introdurre un altro componente (Caddy) e vuoi dare il certificato direttamente a leank-spc: ottienilo con [certbot](https://certbot.eff.org/) (Ubuntu) o [win-acme](https://www.win-acme.com/) (Windows), poi passa i percorsi dei file a `install.sh`/`install.ps1` con `SSL_CERT_FILE`/`SSL_KEY_FILE` (Ubuntu) o `-SslCertFile`/`-SslKeyFile` (Windows) — attenzione però al rinnovo: un certificato Let's Encrypt scade ogni 90 giorni e va rigenerato/ricopiato a mano con questa via, mentre Caddy lo fa da solo.
