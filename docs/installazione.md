@@ -21,6 +21,38 @@ Le modalità 1 e 2 sono completamente automatiche e non richiedono nulla oltre a
 
 ---
 
+## Usare il frontend web
+
+Dopo l'installazione, l'indirizzo mostrato alla fine (es. `http://127.0.0.1:8000`) apre il **frontend web** — l'interfaccia per l'uso quotidiano, con cinque sezioni nel menu laterale:
+
+| Sezione | A cosa serve |
+|---|---|
+| **Cruscotto** | Panoramica: stazioni registrate, quante hanno un Run attivo in questo momento |
+| **Raccolta Dati** | La schermata operativa per il collaudo in officina: si seleziona (o avvia) un Run, si vedono le quote/tolleranze della Routine, le misure arrivano in tempo reale (da Edge Agent o inserite a mano se lo strumento non è ancora collegato) |
+| **Routine & Quote** | Creare/consultare Part, Routine, Feature e le loro versioni di tolleranze (ingegneria/qualità) |
+| **Strumenti** | Anagrafica gage e gestione calibrazioni |
+| **Amministrazione** | Utenti, sedi/stazioni, profili e sorgenti DAQ — stessa funzione di [`admin/index.html`](../admin/index.html) ma integrata nell'app principale |
+
+Login con l'utente `admin` e la password mostrata a fine installazione (la stessa usata per il pannello admin standalone).
+
+### admin/index.html resta disponibile
+
+Il pannello di configurazione standalone (`admin/index.html`, apribile con doppio click, senza build) **non è stato tolto** ed è tenuto aggiornato in parallelo: utile per una configurazione rapida senza aprire il frontend completo, o come alternativa se per qualche motivo il frontend non è stato ancora buildato su questa installazione (vedi sotto). Le due interfacce parlano con le stesse identiche API — quello che si fa in una si vede subito nell'altra.
+
+### Se il frontend non compare (mostra solo `/docs`)
+
+Il frontend è un'app Vue che va **buildata una volta** prima di essere distribuita (richiede Node.js solo sulla macchina dove si builda, mai su quella del cliente):
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+Questo crea `frontend/dist/` — copiarla dentro la cartella del progetto (accanto a `backend/`, `installer/`, ecc.) **prima** di eseguire `install.cmd`/`install.sh` sul PC di destinazione, oppure semplicemente riavviare il backend (`stop.cmd`/`start.cmd`) se il progetto è già installato: il backend la rileva da sola e la serve sulla propria root, senza nessuna configurazione aggiuntiva né un secondo webserver. Dettagli in [`frontend/README.md`](../frontend/README.md).
+
+---
+
 ## Windows — modalità pilota
 
 Installa leank-spc **senza toccare il sistema**: nessun software di sistema installato, nessun servizio Windows, nessun privilegio di amministratore richiesto. Tutto vive dentro la cartella del progetto, in una sottocartella `runtime\` — cancellabile in qualunque momento senza lasciare traccia.

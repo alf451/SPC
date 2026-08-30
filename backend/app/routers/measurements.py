@@ -8,6 +8,7 @@ from app.db import get_session
 from app.models.spc import Measurement
 from app.schemas.spc import MeasurementCreate, MeasurementOut
 from app.security import get_current_user
+from app.ws.connection_manager import manager
 
 router = APIRouter(prefix="/api/runs/{run_id}/measurements", tags=["measurements"], dependencies=[Depends(get_current_user)])
 
@@ -44,4 +45,19 @@ async def create_measurement(
     session.add(measurement)
     await session.commit()
     await session.refresh(measurement)
+
+    # Stesso evento pubblicato da agent_hub.py per le letture da Edge Agent
+    # (vedi docs/api.md) - senza questo, un inserimento manuale non compare in
+    # tempo reale nella dashboard/frontend, solo dopo un refresh (bug
+    # riscontrato dal vivo collaudando la vista "Raccolta Dati" del frontend).
+    await manager.broadcast_to_run(
+        run_id,
+        {
+            "type": "measurement",
+            "feature_id": measurement.feature_id,
+            "obs_no": measurement.obs_no,
+            "value": measurement.value,
+            "captured_at": measurement.captured_at.isoformat(),
+        },
+    )
     return measurement

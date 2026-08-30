@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models.spc import Feature, Routine, RoutineFeature
+from app.models.spc import Feature, FeaturePropertyVersion, Routine, RoutineFeature
 from app.schemas.spc import FeatureOut, RoutineCreate, RoutineOut
 from app.security import get_current_user
 
@@ -60,7 +60,24 @@ async def list_routine_features(
         .order_by(RoutineFeature.order_no)
     )
     result = await session.execute(query)
-    return list(result.scalars())
+    features = list(result.scalars())
+
+    # stesso arricchimento di list_part_features (routers/features.py): la
+    # vista "Raccolta Dati" del frontend chiama questo endpoint per mostrare
+    # target/tolleranze insieme all'elenco Feature della Routine.
+    feature_ids = [f.id for f in features]
+    if feature_ids:
+        current = await session.execute(
+            select(FeaturePropertyVersion).where(
+                FeaturePropertyVersion.feature_id.in_(feature_ids),
+                FeaturePropertyVersion.valid_to.is_(None),
+            )
+        )
+        current_by_feature = {v.feature_id: v for v in current.scalars()}
+        for feature in features:
+            feature.current_properties = current_by_feature.get(feature.id)
+
+    return features
 
 
 @router.put("/routines/{routine_id}/features/{feature_id}", status_code=status.HTTP_204_NO_CONTENT)

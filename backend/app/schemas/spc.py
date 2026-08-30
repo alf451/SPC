@@ -62,6 +62,23 @@ class FeatureCreate(BaseModel):
     properties: FeaturePropertiesIn | None = None
 
 
+class FeaturePropertyVersionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    version_no: int
+    target: float | None
+    lower_tolerance_limit: float | None
+    upper_tolerance_limit: float | None
+    lower_warning_limit: float | None
+    upper_warning_limit: float | None
+    subgroup_size: int
+    control_method: str | None
+    unit_id: int | None
+    decimal_length: int
+    valid_from: datetime
+    valid_to: datetime | None
+
+
 class FeatureOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -70,6 +87,10 @@ class FeatureOut(BaseModel):
     name: str
     description: str | None
     order_no: int
+    # versione di tolleranze/limiti attiva ora (valid_to IS NULL) - None se la
+    # Feature non ne ha ancora nessuna. Popolata a mano dal router (non e' una
+    # relationship SQLAlchemy), vedi list_part_features in routers/features.py.
+    current_properties: FeaturePropertyVersionOut | None = None
 
 
 class RunCreate(BaseModel):

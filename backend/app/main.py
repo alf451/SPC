@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routers import (
@@ -56,6 +59,15 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
+
+    # Frontend Vue (frontend/dist/, prodotto da "npm run build") - montato per
+    # ultimo e solo se presente, cosi' chi non lo ha ancora buildato continua
+    # ad avere un backend funzionante (API/Swagger/pannello admin invariati).
+    # "html=True" serve le pagine di vue-router (createWebHistory) risolvendo
+    # ogni percorso non trovato su index.html invece di un 404 statico.
+    frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    if frontend_dist.is_dir():
+        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 
     return app
 

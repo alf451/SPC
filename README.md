@@ -1,25 +1,27 @@
 # leank-spc
 
-App web (FastAPI + PostgreSQL, frontend Vue da fare in una fase successiva) per SPC e raccolta dati in officina, in sostituzione di Mitutoyo MeasurLink 9. Installabile su Windows (pilota, zero costi) o Ubuntu/Debian (deployment permanente); può importare la configurazione da un MeasurLink esistente e integrarsi con qualunque ERP per commesse/stampi.
+App web (FastAPI + PostgreSQL + frontend Vue) per SPC e raccolta dati in officina, in sostituzione di Mitutoyo MeasurLink 9. Installabile su Windows (pilota, zero costi) o Ubuntu/Debian (deployment permanente); può importare la configurazione da un MeasurLink esistente e integrarsi con qualunque ERP per commesse/stampi.
 
 ## Documentazione
 
-- [`docs/installazione.md`](docs/installazione.md) — installazione **Windows (pilot)** e **Ubuntu (permanente)**
+- [`docs/installazione.md`](docs/installazione.md) — installazione **Windows (pilot)** e **Ubuntu (permanente)**, più [come usare il frontend](docs/installazione.md#usare-il-frontend-web)
 - [`docs/measurlink-analysis.md`](docs/measurlink-analysis.md) — analisi dello schema originale MeasurLink9 (SQL Server), base del redesign
 - [`docs/schema.sql`](docs/schema.sql) — DDL PostgreSQL completo, commentato con il confronto rispetto all'originale
 - [`docs/api.md`](docs/api.md) — elenco endpoint REST e protocollo messaggi WebSocket
 - [`docs/integrazione-erp.md`](docs/integrazione-erp.md) — commesse, stampi/attrezzature, tracciamento per posizione/cavità
+- [`frontend/README.md`](frontend/README.md) — sviluppo/build del frontend Vue (Cruscotto, Raccolta Dati, Routine & Quote, Strumenti, Amministrazione)
 - [`edge-agent/README.md`](edge-agent/README.md) — configurazione e avvio dell'Edge Agent (RS232/USB-ITN)
 - [`import-measurlink/README.md`](import-measurlink/README.md) — import configurazione/storico da MeasurLink
-- [`admin/README.md`](admin/README.md) — pannello web per configurare stazioni/DAQ e lanciare l'import
+- [`admin/README.md`](admin/README.md) — pannello web standalone (senza build) per configurare stazioni/DAQ e lanciare l'import — resta disponibile accanto al frontend Vue
 
 ## Struttura
 
 ```
 backend/            API FastAPI + modelli SQLAlchemy + migration Alembic
+frontend/            App Vue 3 + Vite - interfaccia operativa (build statica servita dal backend)
 edge-agent/          Agente Python da eseguire sui PC di stazione (RS232 + USB-ITN Digimatic)
 import-measurlink/   Tool di import da MeasurLink (SQL Server) verso leank-spc
-admin/                Pannello web (vanilla JS) per configurare stazioni/DAQ e l'import
+admin/                Pannello web (vanilla JS, senza build) per configurare stazioni/DAQ e l'import
 docs/                Analisi, schema, documentazione API, guide installazione/integrazione
 installer/           Installer Windows (pilot mode) e Ubuntu (.sh + unit systemd)
 mockup/, site/        Anteprima UI e pagina di presentazione (statiche, per valutazione/demo)
@@ -45,9 +47,13 @@ L'installer chiede anche che PostgreSQL usare: **portable** (default, nessun pri
 
 Usa i pacchetti di sistema (`apt`, PostgreSQL via systemd) — niente trucco "zero admin", qui è normale. Avvio automatico al boot opzionale via `installer/leank-spc.service`. Dettagli in [`docs/installazione.md`](docs/installazione.md).
 
+## Frontend web (uso quotidiano)
+
+Dopo l'installazione, l'indirizzo mostrato in fondo apre il frontend Vue: Cruscotto, Raccolta Dati (la schermata operativa per il collaudo, con misure live via WebSocket), Routine & Quote, Strumenti, Amministrazione (utenti/stazioni/dispositivi). Vedi [uso del frontend](docs/installazione.md#usare-il-frontend-web) in `docs/installazione.md` e [`frontend/README.md`](frontend/README.md) per sviluppo/build.
+
 ## Configurare stazioni/DAQ e importare da MeasurLink
 
-Apri [`admin/index.html`](admin/index.html) (vedi [`admin/README.md`](admin/README.md)): pannello con test di collegamento reale (chiede all'Edge Agent lo stato della porta) e monitor di avanzamento per l'import — non solo moduli CLI.
+In alternativa alla sezione "Amministrazione" del frontend, resta disponibile [`admin/index.html`](admin/index.html) (vedi [`admin/README.md`](admin/README.md)): pannello standalone senza build, con test di collegamento reale (chiede all'Edge Agent lo stato della porta) e monitor di avanzamento per l'import.
 
 ## Avvio backend (sviluppo locale, alternativa manuale)
 
@@ -85,8 +91,9 @@ Vedi [`edge-agent/README.md`](edge-agent/README.md) per come ottenere il token e
 - API commesse/stampi (v0.2): creazione idempotente via `external_system`+`external_id`, tools con posizioni auto-generate, verificate via chiamate reali.
 - Le tre modalità di rete (v0.2): porta custom, esposizione LAN con regola firewall, HTTPS con certificato auto-firmato — installate e verificate con login + chiamate API reali su tutte e tre. Un altro bug trovato nel farlo: `ServerCertificateValidationCallback` non funziona in modo affidabile su PowerShell 5.1 (nessun runspace nel thread .NET che lo invoca) — risolto con la vecchia interfaccia `ICertificatePolicy`, collaudata.
 - Modalità PostgreSQL Portable/Completo (v0.2.2): il refactor che introduce la scelta è stato verificato con una **regressione completa** dell'installazione Portable pre-esistente (identica, nessuna rottura).
+- Frontend Vue (v0.3): tutte e 5 le sezioni collaudate in un browser reale contro il backend e i dati reali importati da MeasurLink (11 stazioni, centinaia di Part/Routine/Feature, 316 strumenti) — login, navigazione, creazione Run, quote/tolleranze mostrate correttamente. Flusso end-to-end **Raccolta Dati** verificato per davvero: avvio Run → inserimento manuale di una misura → comparsa immediata via WebSocket, senza refresh. Trovati e corretti 2 bug backend reali nel farlo: (1) `measurements.captured_at`/altre colonne `timestamptz` mappate come naive lato SQLAlchemy (mancava `type_annotation_map` sul `Base`) → `DataError` su qualunque insert con un datetime timezone-aware; (2) l'inserimento manuale di una misura via REST non pubblicava l'evento WebSocket verso la dashboard (solo il percorso Edge Agent lo faceva). Aggiunto anche `GET /api/features/{id}/properties` e `current_properties` su `FeatureOut`, mancanti per mostrare le tolleranze nel frontend.
 
-Non ancora verificato: gli script Ubuntu (nessuna macchina Linux disponibile in questa sessione — la logica ricalca quella Windows già validata, ma va provata alla prima occasione), il collegamento a strumenti Digimatic fisici veri (finora solo sorgente `mock`), il percorso HTTPS con certificato pubblico/Caddy (solo documentato, richiede un dominio reale per essere testato), e il ramo **PostgreSQL Completo** (installazione nuova via installer ufficiale EDB, o riuso di una esistente): implementato dalla documentazione ufficiale, ma questa sessione non ha mai avuto una PowerShell da amministratore né un PostgreSQL "completo" già installato a disposizione, quindi **nessuno dei due sotto-percorsi è stato collaudato dal vivo** — solo il guard "richiede amministratore" è stato verificato in isolamento. Da provare su una macchina non critica (es. il Windows 2012 "cavia") prima di usarlo da un cliente.
+Non ancora verificato: gli script Ubuntu (nessuna macchina Linux disponibile in questa sessione — la logica ricalca quella Windows già validata, ma va provata alla prima occasione), il collegamento a strumenti Digimatic fisici veri (finora solo sorgente `mock`), il percorso HTTPS con certificato pubblico/Caddy (solo documentato, richiede un dominio reale per essere testato), il ramo **PostgreSQL Completo** (installazione nuova via installer ufficiale EDB, o riuso di una esistente): implementato dalla documentazione ufficiale, ma questa sessione non ha mai avuto una PowerShell da amministratore né un PostgreSQL "completo" già installato a disposizione, quindi **nessuno dei due sotto-percorsi è stato collaudato dal vivo** — solo il guard "richiede amministratore" è stato verificato in isolamento (da provare su una macchina non critica, es. il Windows 2012 "cavia", prima di usarlo da un cliente); e il **mount statico del frontend buildato dentro un'installazione pilota reale** (verificato che il backend lo serve correttamente da questa macchina di sviluppo con `frontend/dist/` accanto a `backend/`, ma non ancora sul PC del cliente attraverso `install.cmd`/`start.cmd` — dovrebbe funzionare identico, essendo lo stesso backend, ma resta da confermare alla prima occasione).
 
 Resta da fare (vedi TODO nel codice):
 

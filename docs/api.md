@@ -16,8 +16,8 @@ Tutte le altre route REST richiedono il bearer token. Autorizzazione granulare p
 |---|---|---|
 | Part folders | `GET /api/part-folders` | |
 | Parts | `GET/POST /api/parts`, `GET /api/parts/{id}` | filtri `folder_id`, `search` |
-| Features | `GET /api/parts/{part_id}/features`, `POST /api/features` | creare una Feature con `properties` crea anche la prima versione di tolleranze |
-| Feature properties | `POST /api/features/{id}/properties` | crea una **nuova versione** (mai update in-place), chiude quella corrente |
+| Features | `GET /api/parts/{part_id}/features`, `POST /api/features` | creare una Feature con `properties` crea anche la prima versione di tolleranze; ogni Feature nella risposta include `current_properties` (la versione con `valid_to IS NULL`, `null` se non ancora creata) |
+| Feature properties | `GET /api/features/{id}/properties`, `POST /api/features/{id}/properties` | GET restituisce lo storico versioni (più recente prima) - **v0.3**, aggiunto per il frontend; POST crea una **nuova versione** (mai update in-place), chiude quella corrente |
 | Routines | `GET/POST /api/routines`, `GET /api/routines/{id}` | |
 | Routine features | `GET /api/routines/{id}/features`, `PUT /api/routines/{id}/features/{feature_id}` | binding N:N con ordine |
 | Runs | `GET/POST /api/runs`, `GET /api/runs/{id}`, `POST /api/runs/{id}/complete` | |

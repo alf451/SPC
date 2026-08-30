@@ -1,0 +1,67 @@
+/* Token colore/tipografia estratti da mockup/leank-spc-preview.html, cosi'
+   il frontend reale mantiene lo stesso linguaggio visivo del mockup gia'
+   mostrato/approvato, invece di reinventarne uno nuovo. */
+
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+  --bg: #eef1f2;
+  --surface: #ffffff;
+  --surface-2: #f5f7f8;
+  --border: #d9dee2;
+  --border-strong: #c2c9ce;
+  --ink: #16212b;
+  --ink-2: #52626f;
+  --ink-3: #8b98a3;
+  --accent: #0c7c8c;
+  --accent-strong: #085865;
+  --accent-soft: #e1f1f2;
+  --brass: #9c6e37;
+  --danger: #b3261e;
+  --danger-soft: #fbe9e7;
+  --ok: #2e7d32;
+  --ok-soft: #e8f5e9;
+}
+
+/* prefers-color-scheme: applica il tema scuro solo se l'utente non ha scelto
+   esplicitamente un tema chiaro (vedi :root[data-theme="light"] sotto). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1417;
+    --surface: #161d21;
+    --surface-2: #1b2327;
+    --border: #2a353b;
+    --border-strong: #3a464c;
+    --ink: #e7edef;
+    --ink-2: #a8b4ba;
+    --ink-3: #6c7a81;
+    --accent: #2fb8c4;
+    --accent-strong: #7ee0e9;
+    --accent-soft: #102e33;
+    --brass: #c9a06a;
+    --danger: #e57373;
+    --danger-soft: #3a1f1e;
+    --ok: #81c784;
+    --ok-soft: #1c2e1d;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e1417;
+  --surface: #161d21;
+  --surface-2: #1b2327;
+  --border: #2a353b;
+  --border-strong: #3a464c;
+  --ink: #e7edef;
+  --ink-2: #a8b4ba;
+  --ink-3: #6c7a81;
+  --accent: #2fb8c4;
+  --accent-strong: #7ee0e9;
+  --accent-soft: #102e33;
+  --brass: #c9a06a;
+  --danger: #e57373;
+  --danger-soft: #3a1f1e;
+  --ok: #81c784;
+  --ok-soft: #1c2e1d;
+}

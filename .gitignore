@@ -10,5 +10,8 @@ edge-agent/outbox.sqlite3
 .DS_Store
 runtime/
 vendor/
+frontend/node_modules/
+frontend/dist/
+frontend/.env
 
 *.docx
