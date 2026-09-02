@@ -67,6 +67,10 @@ param(
 Write-Host "=== leank-spc - installazione pilot mode ===" -ForegroundColor Magenta
 Write-Host "Cartella progetto: $ProjectRoot"
 Write-Host "Cartella runtime:  $RuntimeDir (tutto qui dentro, nulla fuori)"
+Write-Host "ATTENZIONE: non premere Ctrl+C in questa finestra durante l'esecuzione, anche" -ForegroundColor Yellow
+Write-Host "se sembra ferma per qualche minuto (es. durante il download o l'inizializzazione" -ForegroundColor Yellow
+Write-Host "del database) - su Windows un Ctrl+C qui puo' arrestare in modo anomalo anche" -ForegroundColor Yellow
+Write-Host "PostgreSQL, che condivide questa console (riscontrato dal vivo)." -ForegroundColor Yellow
 
 Assert-Dir $RuntimeDir
 Assert-Dir $LogsDir

@@ -7,6 +7,8 @@
 
 . "$PSScriptRoot\common.ps1"
 
+Write-Host "Non premere Ctrl+C in questa finestra durante l'avvio: su Windows puo' arrestare in modo anomalo anche PostgreSQL, che condivide questa console (riscontrato dal vivo)." -ForegroundColor Yellow
+
 $postgresMode = Get-PostgresMode
 Write-Step "PostgreSQL"
 if ($postgresMode -eq "Full") {
