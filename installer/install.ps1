@@ -270,6 +270,17 @@ if ($PostgresMode -eq "Full") {
         # PowerShell resta in attesa di un EOF che non arriva mai finche' il server
         # non si ferma, con lo script che sembra bloccarsi indefinitamente.
         & $pgCtl start -D $PgDataDir -l $logFile -o "-p $PgPort -c listen_addresses=127.0.0.1" -w
+        # "pg_ctl start" puo' fallire/andare in timeout senza che $LASTEXITCODE lo
+        # rifletta in modo affidabile qui (dipende da come pg_ctl -w restituisce il
+        # controllo) - senza questo controllo esplicito lo script proseguiva comunque
+        # fino alla migration, dove l'errore compariva mascherato e fuorviante
+        # ("ConnectionRefusedError" su alembic invece del vero problema). Riscontrato
+        # dal vivo spostando runtime\pgdata da un'altra cartella progetto: se il
+        # vecchio processo non era stato fermato prima, restava un postmaster.pid
+        # non valido che impediva il riavvio pulito nella nuova posizione.
+        if (-not (Test-PostgresRunning)) {
+            throw "PostgreSQL non risulta avviato dopo 'pg_ctl start' - controllare $logFile per l'errore esatto. Causa comune: la cartella runtime\ e' stata spostata/copiata da un'altra cartella progetto senza prima fermare PostgreSQL li' (installer\stop.ps1) - in quel caso cancellare runtime\pgdata\postmaster.pid (se presente) e rilanciare."
+        }
     } else {
         Write-Ok "PostgreSQL gia' in esecuzione"
     }
