@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Test seriale — U-Wave / Digimatic</title>
+<style>
+  :root {
+    --bg: #EEF1F2; --surface: #FFFFFF; --surface-2: #F5F7F8; --border: #D9DEE2; --border-strong: #C2C9CE;
+    --ink: #16212B; --ink-2: #52626F; --ink-3: #8B98A3;
+    --accent: #0C7C8C; --accent-strong: #085865; --accent-soft: #E1F1F2;
+    --ok: #2e7d32; --ok-soft: #e8f5e9; --danger: #b3261e; --danger-soft: #fbe9e7;
+    --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--ink); font-size: 14px; }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  header h1 { margin: 0; font-size: 18px; }
+  header p { margin: 4px 0 0; color: var(--ink-2); font-size: 13px; }
+  main { padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .panel h2 { margin: 0 0 12px; font-size: 14px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--ink-2); }
+  input, select { font-family: inherit; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); }
+  button { font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); padding: 8px 16px; }
+  button:hover:not(:disabled) { background: var(--surface-2); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: var(--accent-strong); }
+  button.danger { border-color: var(--danger); color: var(--danger); }
+  button.danger:hover:not(:disabled) { background: var(--danger-soft); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: .03em; }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.off { background: var(--surface-2); color: var(--ink-3); }
+  .badge.danger { background: var(--danger-soft); color: var(--danger); }
+  .error-box { background: var(--danger-soft); color: var(--danger); border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 12px; }
+  .hint { font-size: 12px; color: var(--ink-3); }
+  #log {
+    font-family: var(--font-mono); font-size: 12px; background: var(--ink); color: #d7e2e6;
+    border-radius: 8px; padding: 12px; height: 380px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  .log-line { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+  .log-line .ts { color: #6c7a81; }
+  .log-line .hex { color: #7ee0e9; }
+  .log-line .ascii { color: #d7e2e6; }
+  .log-line.numeric { background: rgba(46,125,50,.18); }
+  .log-line.numeric .val { color: #81c784; font-weight: 700; }
+  .stats { display: flex; gap: 20px; font-size: 12px; color: var(--ink-2); margin-top: 8px; }
+  .stats b { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Test connessione seriale — U-Wave / Digimatic</h1>
+  <p>Strumento diagnostico: apre una porta COM direttamente dal browser e mostra ogni byte ricevuto, per capire cosa manda davvero l'hardware prima di finalizzare il parser dell'Edge Agent. Non fa parte dell'app in produzione.</p>
+</header>
+
+<main>
+
+  <div id="unsupported" class="error-box" style="display:none">
+    Questo browser non supporta la <b>Web Serial API</b>. Serve Chrome o Edge (desktop),
+    con la pagina aperta da <code>file://</code>, <code>http://localhost</code> o via HTTPS
+    (non funziona da un indirizzo <code>http://IP-DI-RETE</code> semplice: quello non è un
+    "contesto sicuro"). Firefox e Safari non la supportano affatto.
+  </div>
+
+  <div class="panel">
+    <h2>Connessione <span id="statusBadge" class="badge off">disconnesso</span></h2>
+    <div class="row">
+      <div class="field">
+        <label>Baud rate</label>
+        <input id="baudRate" type="number" value="57600" style="width:110px" />
+      </div>
+      <div class="field">
+        <label>Bit dati</label>
+        <select id="dataBits"><option value="8" selected>8</option><option value="7">7</option></select>
+      </div>
+      <div class="field">
+        <label>Parità</label>
+        <select id="parity">
+          <option value="none" selected>Nessuna</option>
+          <option value="even">Pari</option>
+          <option value="odd">Dispari</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Bit di stop</label>
+        <select id="stopBits"><option value="1" selected>1</option><option value="2">2</option></select>
+      </div>
+      <button id="btnConnect" class="primary">Connetti...</button>
+      <button id="btnDisconnect" disabled>Disconnetti</button>
+    </div>
+    <p class="hint">Default preimpostato per Mitutoyo U-Wave (57600-N-8-1, come da manuale — vedi <code>external-documents/U-Wave-sintesi-italiano.md</code>). Cambia i parametri per testare altri convertitori Digimatic.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Invia comando (per dispositivi "polled" che richiedono una richiesta esplicita)</h2>
+    <div class="row">
+      <div class="field" style="flex:1; min-width:200px">
+        <label>Testo da inviare</label>
+        <input id="sendText" type="text" placeholder="es. R" style="width:100%" />
+      </div>
+      <div class="field">
+        <label>Termina con</label>
+        <select id="sendTerminator">
+          <option value="">Niente</option>
+          <option value="\r" selected>CR (\r)</option>
+          <option value="\n">LF (\n)</option>
+          <option value="\r\n">CR LF (\r\n)</option>
+        </select>
+      </div>
+      <button id="btnSend" disabled>Invia</button>
+    </div>
+    <p class="hint">U-Wave-T è a comando fisico (tasto sullo strumento): questo campo serve più che altro per convertitori "polled" tipo MicroRidge GageWay (comandi R/B/S/...).</p>
+  </div>
+
+  <div class="panel">
+    <h2>Dati ricevuti</h2>
+    <div id="log"></div>
+    <div class="stats">
+      <span>Chunk ricevuti: <b id="statChunks">0</b></span>
+      <span>Byte totali: <b id="statBytes">0</b></span>
+      <span>Righe riconosciute come numero: <b id="statNumeric">0</b></span>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="btnClear">Cancella log</button>
+      <button id="btnDownload">Scarica log (.txt)</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // Stessa regex di edge-agent/edge_agent/sources/digimatic_rs232.py
+  // (parse_digimatic_frame) - qui serve solo per capire a colpo d'occhio,
+  // riga per riga, se il parser Python reale accetterebbe quel valore.
+  var NUMERIC_RE = /[-+]?\d*\.?\d+/;
+
+  var els = {};
+  ["baudRate", "dataBits", "parity", "stopBits", "btnConnect", "btnDisconnect",
+   "sendText", "sendTerminator", "btnSend", "log", "btnClear", "btnDownload",
+   "statusBadge", "statChunks", "statBytes", "statNumeric", "unsupported"].forEach(function (id) {
+    els[id] = document.getElementById(id);
+  });
+
+  var port = null;
+  var reader = null;
+  var writer = null;
+  var keepReading = false;
+  var chunkCount = 0;
+  var byteCount = 0;
+  var numericCount = 0;
+  var lineBuffer = "";
+  var logEntries = []; // per il download
+
+  if (!("serial" in navigator)) {
+    els.unsupported.style.display = "block";
+    els.btnConnect.disabled = true;
+  }
+
+  function setStatus(state) {
+    // state: "off" | "ok" | "danger"
+    var labels = { off: "disconnesso", ok: "connesso", danger: "errore" };
+    els.statusBadge.className = "badge " + state;
+    els.statusBadge.textContent = labels[state];
+  }
+
+  function toHex(bytes) {
+    var out = [];
+    for (var i = 0; i < bytes.length; i++) {
+      out.push(bytes[i].toString(16).padStart(2, "0"));
+    }
+    return out.join(" ");
+  }
+
+  function toAscii(bytes) {
+    var out = "";
+    for (var i = 0; i < bytes.length; i++) {
+      var b = bytes[i];
+      out += (b >= 32 && b < 127) ? String.fromCharCode(b) : ".";
+    }
+    return out;
+  }
+
+  function appendLogLine(html, plainText, isNumeric) {
+    var div = document.createElement("div");
+    div.className = "log-line" + (isNumeric ? " numeric" : "");
+    div.innerHTML = html;
+    els.log.appendChild(div);
+    els.log.scrollTop = els.log.scrollHeight;
+    logEntries.push(plainText);
+  }
+
+  function timestamp() {
+    var d = new Date();
+    return d.toLocaleTimeString("it-IT", { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0");
+  }
+
+  // Decodifica 1 byte = 1 carattere, preservando \r/\n veri (a differenza di
+  // toAscii(), che li sostituisce con "." SOLO per la visualizzazione hex-dump
+  // - usare l'output di toAscii() per bufferizzare le righe era un bug: i
+  // separatori di riga sparivano prima ancora di poterli cercare).
+  function toRaw(bytes) {
+    var out = "";
+    for (var i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
+    return out;
+  }
+
+  function handleChunk(bytes) {
+    chunkCount++;
+    byteCount += bytes.length;
+    els.statChunks.textContent = chunkCount;
+    els.statBytes.textContent = byteCount;
+
+    var hex = toHex(bytes);
+    var ascii = toAscii(bytes);
+    var ts = timestamp();
+    appendLogLine(
+      '<span class="ts">[' + ts + ']</span> <span class="hex">' + hex + '</span>  <span class="ascii">"' + escapeHtml(ascii) + '"</span>',
+      "[" + ts + "] HEX: " + hex + "   ASCII: \"" + ascii + '"',
+      false
+    );
+
+    // Bufferizza per riconoscere righe complete (CR e/o LF) e provare il
+    // riconoscimento numerico, come farebbe il parser Python reale.
+    lineBuffer += toRaw(bytes);
+    var parts = lineBuffer.split(/[\r\n]+/);
+    lineBuffer = parts.pop(); // resto incompleto, resta in buffer
+    parts.forEach(function (line) {
+      if (!line.trim()) return;
+      var m = NUMERIC_RE.exec(line);
+      if (m) {
+        numericCount++;
+        els.statNumeric.textContent = numericCount;
+        appendLogLine(
+          '&nbsp;&nbsp;&nbsp;&nbsp;→ riga: "' + escapeHtml(line) + '" — <span class="val">riconosciuta come numero: ' + m[0] + '</span>',
+          '    -> riga: "' + line + '" - riconosciuta come numero: ' + m[0],
+          true
+        );
+      } else {
+        appendLogLine(
+          '&nbsp;&nbsp;&nbsp;&nbsp;→ riga: "' + escapeHtml(line) + '" — non riconosciuta come numero',
+          '    -> riga: "' + line + '" - non riconosciuta come numero',
+          false
+        );
+      }
+    });
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  async function readLoop() {
+    while (keepReading && port && port.readable) {
+      reader = port.readable.getReader();
+      try {
+        while (true) {
+          var result = await reader.read();
+          if (result.done) break;
+          if (result.value && result.value.length) handleChunk(result.value);
+        }
+      } catch (err) {
+        appendLogLine('<span style="color:#e57373">Errore di lettura: ' + escapeHtml(err.message) + "</span>", "ERRORE: " + err.message, false);
+      } finally {
+        reader.releaseLock();
+      }
+    }
+  }
+
+  els.btnConnect.addEventListener("click", async function () {
+    try {
+      port = await navigator.serial.requestPort();
+      var options = {
+        baudRate: parseInt(els.baudRate.value, 10) || 57600,
+        dataBits: parseInt(els.dataBits.value, 10),
+        parity: els.parity.value,
+        stopBits: parseInt(els.stopBits.value, 10),
+      };
+      await port.open(options);
+      writer = port.writable.getWriter();
+      keepReading = true;
+      setStatus("ok");
+      els.btnConnect.disabled = true;
+      els.btnDisconnect.disabled = false;
+      els.btnSend.disabled = false;
+      appendLogLine(
+        '<span style="color:#81c784">Connesso: ' + JSON.stringify(options) + "</span>",
+        "CONNESSO: " + JSON.stringify(options),
+        false
+      );
+      readLoop();
+    } catch (err) {
+      setStatus("danger");
+      appendLogLine('<span style="color:#e57373">Connessione fallita: ' + escapeHtml(err.message) + "</span>", "CONNESSIONE FALLITA: " + err.message, false);
+    }
+  });
+
+  els.btnDisconnect.addEventListener("click", async function () {
+    keepReading = false;
+    try {
+      if (reader) { await reader.cancel(); }
+      if (writer) { writer.releaseLock(); writer = null; }
+      if (port) { await port.close(); port = null; }
+    } catch (err) {
+      appendLogLine('<span style="color:#e57373">Errore in chiusura: ' + escapeHtml(err.message) + "</span>", "ERRORE CHIUSURA: " + err.message, false);
+    }
+    setStatus("off");
+    els.btnConnect.disabled = false;
+    els.btnDisconnect.disabled = true;
+    els.btnSend.disabled = true;
+  });
+
+  els.btnSend.addEventListener("click", async function () {
+    if (!writer) return;
+    var term = { "": "", "\\r": "\r", "\\n": "\n", "\\r\\n": "\r\n" }[els.sendTerminator.value] || "";
+    var text = els.sendText.value + term;
+    var bytes = new TextEncoder().encode(text);
+    await writer.write(bytes);
+    appendLogLine(
+      '<span style="color:#c9a06a">→ inviato: ' + escapeHtml(JSON.stringify(els.sendText.value + term)) + "</span>",
+      "INVIATO: " + JSON.stringify(els.sendText.value + term),
+      false
+    );
+  });
+
+  els.btnClear.addEventListener("click", function () {
+    els.log.innerHTML = "";
+    logEntries = [];
+    chunkCount = 0; byteCount = 0; numericCount = 0;
+    els.statChunks.textContent = "0"; els.statBytes.textContent = "0"; els.statNumeric.textContent = "0";
+  });
+
+  els.btnDownload.addEventListener("click", function () {
+    var blob = new Blob([logEntries.join("\n")], { type: "text/plain" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    a.href = url;
+    a.download = "serial-monitor-" + stamp + ".txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+})();
+</script>
+
+</body>
+</html>
