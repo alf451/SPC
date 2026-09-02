@@ -17,7 +17,14 @@ _PARITY_MAP = {"N": serial.PARITY_NONE, "E": serial.PARITY_EVEN, "O": serial.PAR
 # ASCII decimale tipo "+0.0125\r\n", altri BCD grezzo da decodificare in base a
 # decimal_length/segno separati). Questa regex copre il caso comune "ASCII già
 # formattato" — è il primo punto da adattare quando si collauda l'hardware reale.
-_NUMERIC_RE = re.compile(r"[-+]?\d+(?:\.\d+)?")
+#
+# "\d*" (non "\d+") prima del punto: un convertitore Mitutoyo-compatibile reale
+# (MicroRidge GageWay, stesso output "clocked serial" Digimatic decodificato -
+# vedi external-documents/U-Wave-sintesi-italiano.md) invia il valore SENZA
+# zero iniziale quando |valore| < 1, es. ".1455" o "-.5725" - con "\d+"
+# obbligatorio quei casi non verrebbero riconosciuti (bug trovato via
+# documentazione esterna, non ancora su hardware reale).
+_NUMERIC_RE = re.compile(r"[-+]?\d*\.?\d+")
 
 
 def parse_digimatic_frame(raw_text: str) -> float | None:
@@ -28,6 +35,16 @@ def parse_digimatic_frame(raw_text: str) -> float | None:
     punto decimale esplicito, con la posizione del decimale codificata in un
     nibble separato — in quel caso questa funzione va riscritta per quel
     formato specifico, mantenendo la stessa firma).
+
+    Nel caso specifico del convertitore Mitutoyo U-WAVE (in uso presso Mopla):
+    vedi external-documents/U-Wave-sintesi-italiano.md - confermati solo i
+    parametri seriali (57600 baud, 8N1, nessuna parità, esposti da U-WAVEPAK
+    su una porta COM virtuale sopra USB); il formato byte-per-byte del frame
+    NON è documentato in quella fonte e resta da verificare via cattura diretta
+    sull'hardware reale. Da notare anche: il tasto "dati" del trasmettitore
+    U-WAVE-T, se tenuto premuto 5 secondi, invia un comando di "ritiro" (rimuove
+    l'ultima misura) invece di un valore - il parser reale dovrà distinguere
+    questo caso da una lettura numerica valida, non solo scartarlo come rumore.
     """
     match = _NUMERIC_RE.search(raw_text)
     return float(match.group()) if match else None
