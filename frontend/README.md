@@ -22,7 +22,19 @@ npm run build
 
 Produce `frontend/dist/` (statico, nessun Node.js richiesto per usarlo). Il backend FastAPI lo serve automaticamente sulla propria root se la cartella `frontend/dist/` esiste accanto a `backend/` (vedi `backend/app/main.py`) — nessuna configurazione aggiuntiva, nessun secondo webserver.
 
-Per distribuire il frontend insieme al resto del progetto (es. sul PC del cliente per il pilot Windows): buildare qui, poi copiare `frontend/dist/` dentro la cartella del progetto insieme a `backend/`, `installer/`, ecc. — l'installer esistente non richiede modifiche, il backend lo trova e lo serve da solo al prossimo avvio.
+### `frontend/dist/` è versionato in git (scelta deliberata)
+
+A differenza della prassi comune (di solito i build non si versionano), qui `frontend/dist/` **è committato** — non è nel `.gitignore`. Motivo concreto: il PC del cliente pilota è spesso un Windows datato (es. Server 2012/2012 R2) su cui Node.js 18+ **non gira affatto** ("Node.js is only supported on Windows 10, Windows Server 2016, or higher" — riscontrato dal vivo), quindi non può buildare da solo. Tenere `dist/` in git significa che un semplice
+
+```powershell
+git pull
+installer\stop.cmd
+installer\start.cmd
+```
+
+sulla macchina di destinazione aggiorna **sia il backend sia il frontend** in un colpo solo, senza dover ricostruire/trasferire uno zip separato ad ogni modifica.
+
+**Regola per chi modifica `frontend/src/`**: rilanciare `npm run build` e includere il `frontend/dist/` risultante nello stesso commit delle modifiche sorgente — un commit che tocca `src/` senza aggiornare `dist/` lascia il PC cliente con un frontend disallineato dal codice, silenziosamente (nessun errore, semplicemente la versione vecchia continua a essere servita).
 
 ## Struttura
 

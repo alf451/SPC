@@ -94,13 +94,29 @@ Dovresti vedere `{"status":"ok"}`. Se invece il browser dice "impossibile raggiu
 
 ## Parte 2 — Frontend (l'interfaccia web vera e propria)
 
-Il frontend (Cruscotto, Raccolta Dati, Routine & Quote, Strumenti, Amministrazione) è un'app che va **buildata una volta** prima di poter essere usata — il risultato sono file statici (HTML/CSS/JS) che il backend serve da solo, senza bisogno di Node.js sul PC finale dopo questo passaggio.
+Il frontend (Cruscotto, Raccolta Dati, Routine & Quote, Strumenti, Amministrazione) è un'app che va **buildata** prima di poter essere usata — il risultato sono file statici (HTML/CSS/JS) che il backend serve da solo, senza bisogno di Node.js sul PC finale.
 
-### 2.1 Dove buildarlo
+### 2.1 Se il progetto è stato clonato/aggiornato con `git` (caso normale)
 
-> ⚠️ **Node.js richiede almeno Windows 10 / Server 2016**. Su un Windows Server 2012 (anche R2) l'installazione di Node.js recente **fallisce all'avvio** con l'errore "Node.js is only supported on Windows 10, Windows Server 2016, or higher" — riscontrato davvero durante i test. Se il PC dove installi leank-spc è un server datato, **non provare a buildare il frontend lì**: buildalo su un PC normale (il tuo portatile, un altro PC in ufficio con Windows 10/11) e trasferisci solo il risultato.
+**`frontend\dist\` (già buildato) è incluso nel repository** — non serve buildare nulla sul PC di destinazione. Un `git clone`/`git pull` porta già la versione pronta all'uso:
 
-Sul PC dove builda (richiede [Node.js](https://nodejs.org/) 18 o superiore):
+```powershell
+installer\stop.cmd
+installer\start.cmd
+```
+
+Apri:
+```
+http://127.0.0.1:8000/
+```
+
+e la schermata di login del frontend dovrebbe comparire subito.
+
+> ⚠️ **Node.js richiede almeno Windows 10 / Server 2016**. Su un Windows Server 2012 (anche R2) l'installazione di Node.js recente **fallisce all'avvio** con l'errore "Node.js is only supported on Windows 10, Windows Server 2016, or higher" — riscontrato davvero durante i test. È proprio per questo che `frontend\dist\` viene tenuto già pronto in git: sui PC datati non sarebbe comunque possibile buildarlo lì.
+
+### 2.2 Se serve buildarlo a mano (sviluppo, o progetto scaricato come zip senza git)
+
+Su un PC con [Node.js](https://nodejs.org/) 18 o superiore (**non** un Windows Server datato, vedi sopra):
 
 ```powershell
 cd frontend
@@ -108,24 +124,14 @@ npm install
 npm run build
 ```
 
-Questo crea la cartella `frontend\dist\` (solo file statici, nessuna dipendenza da Node.js per funzionare).
-
-### 2.2 Portare `dist\` sul PC di destinazione
-
-Se hai buildato su un PC diverso da quello di destinazione: copia l'intera cartella `frontend\dist\` (via chiavetta USB, cartella di rete, o clipboard RDP se stai lavorando su un server remoto) dentro:
-```
-<cartella progetto>\frontend\dist\
-```
-Deve risultare `frontend\dist\index.html` — **non** `frontend\dist\dist\index.html` (se l'estrazione di uno zip crea una sottocartella in più, sposta il contenuto di un livello più su).
-
-### 2.3 Attivarlo
+Crea/aggiorna `frontend\dist\` (solo file statici). Se hai buildato su un PC diverso da quello di destinazione, copia l'intera cartella `frontend\dist\` (chiavetta USB, cartella di rete, o clipboard RDP) dentro `<cartella progetto>\frontend\dist\` — deve risultare `frontend\dist\index.html`, **non** `frontend\dist\dist\index.html` (se l'estrazione di uno zip crea una sottocartella in più, sposta il contenuto di un livello più su). Poi:
 
 ```powershell
 installer\stop.cmd
 installer\start.cmd
 ```
 
-Il backend rileva da solo `frontend\dist\` e la serve dalla propria root. Apri:
+Apri:
 ```
 http://127.0.0.1:8000/
 ```

@@ -3,3 +3,9 @@
 # l'esecuzione su Linux ("bad interpreter: /bin/bash^M").
 *.sh text eol=lf
 installer/leank-spc.service text eol=lf
+
+# frontend/dist/ e' un build committato deliberatamente (vedi frontend/README.md)
+# - LF fisso evita che ogni rebuild produca un diff enorme di soli fine-riga
+# per via della conversione CRLF di Windows, e i nomi file gia' contengono un
+# hash del contenuto calcolato da Vite: nessun motivo per farli fluttuare.
+frontend/dist/** text eol=lf
