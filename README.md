@@ -4,7 +4,9 @@ App web (FastAPI + PostgreSQL + frontend Vue) per SPC e raccolta dati in officin
 
 ## Documentazione
 
-- [`docs/installazione.md`](docs/installazione.md) — installazione **Windows (pilot)** e **Ubuntu (permanente)**, più [come usare il frontend](docs/installazione.md#usare-il-frontend-web)
+- [`docs/guida-installazione-e-test.md`](docs/guida-installazione-e-test.md) — **guida unica passo-passo** (backend, frontend, configurazione strumenti, test end-to-end, troubleshooting dei problemi reali già incontrati) — punto di partenza consigliato
+- [`docs/test-mitutoyo-uwave.md`](docs/test-mitutoyo-uwave.md) — collaudo specifico del sistema Mitutoyo U-Wave (wireless)
+- [`docs/installazione.md`](docs/installazione.md) — installazione **Windows (pilot)** e **Ubuntu (permanente)** in dettaglio, più [come usare il frontend](docs/installazione.md#usare-il-frontend-web)
 - [`docs/measurlink-analysis.md`](docs/measurlink-analysis.md) — analisi dello schema originale MeasurLink9 (SQL Server), base del redesign
 - [`docs/schema.sql`](docs/schema.sql) — DDL PostgreSQL completo, commentato con il confronto rispetto all'originale
 - [`docs/api.md`](docs/api.md) — elenco endpoint REST e protocollo messaggi WebSocket
