@@ -77,3 +77,7 @@ Log a video; `Ctrl+C` per fermare. Le letture non ancora confermate dal server r
 ## "Prova collegamento" dal pannello admin
 
 Il [pannello admin](../admin/index.html) ha un pulsante "Prova" per ogni sorgente DAQ configurata: chiede a questo Edge Agent (se connesso) lo stato reale della porta. Non forza una lettura — in modalità `push` non è possibile senza premere il tasto DATA sullo strumento — riporta invece se la porta è aperta e quando è arrivata l'ultima lettura, leggendo lo stato che `main.py::run_source` tiene aggiornato su ogni `Source` (`is_connected`, `last_reading_at`, `last_raw`). Vedi il protocollo `test_source`/`test_result` in `docs/api.md`.
+
+## Rilevamento porte disponibili (v0.3)
+
+Ad ogni connessione, l'agent riporta al backend anche l'elenco di **tutte** le porte seriali che vede sul PC in quel momento (`port_scan.py`, via `serial.tools.list_ports` — non solo quelle già configurate in `config.yaml`). Serve a chi configura una sorgente DAQ dal pannello Amministrazione/admin: vede un elenco reale ("COM3 - U-WAVE Virtual COM Port") invece di doverlo scoprire da Gestione dispositivi via RDP. Nessuna configurazione richiesta - avviene automaticamente ad ogni `hello`. Vedi `GET /api/stations/{id}/available-ports` in `docs/api.md`.

@@ -149,6 +149,7 @@ async def agent_websocket(websocket: WebSocket, station_id: int, token: str | No
                 run = await _active_run(station_id)
                 resolved_sources = await _resolve_daq_sources(station_id, message.get("sources", []))
                 bindings = await _feature_bindings_for_run(run) if run else []
+                manager.set_available_ports(station_key, message.get("available_ports", []))
                 await websocket.send_json(
                     {
                         "type": "config",

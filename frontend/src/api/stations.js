@@ -10,4 +10,7 @@ export const stationsApi = {
   get: (id) => api.get(`/api/stations/${id}`),
   create: (payload) => api.post("/api/stations", payload),
   remove: (id) => api.delete(`/api/stations/${id}`),
+  // porte seriali rilevate in questo momento dall'Edge Agent di quella
+  // stazione (dal suo ultimo messaggio "hello") - vedi docs/api.md
+  availablePorts: (id) => api.get(`/api/stations/${id}/available-ports`),
 };

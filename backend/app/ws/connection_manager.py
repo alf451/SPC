@@ -21,6 +21,7 @@ class ConnectionManager:
         self._agents: dict[str, WebSocket] = {}
         self._dashboards: dict[int, set[WebSocket]] = defaultdict(set)
         self._pending_requests: dict[str, asyncio.Future] = {}
+        self._available_ports: dict[str, list[dict]] = {}
 
     # --- Edge Agent connections (una per stazione) -----------------------
 
@@ -29,9 +30,22 @@ class ConnectionManager:
 
     def disconnect_agent(self, station_id: str) -> None:
         self._agents.pop(station_id, None)
+        # le porte riportate da un agent scollegato non sono piu' attendibili -
+        # meglio "nessun dato" che un elenco potenzialmente stantio
+        self._available_ports.pop(station_id, None)
 
     def get_agent(self, station_id: str) -> WebSocket | None:
         return self._agents.get(station_id)
+
+    # --- Porte seriali disponibili per stazione (dal messaggio "hello") ---
+
+    def set_available_ports(self, station_id: str, ports: list[dict]) -> None:
+        self._available_ports[station_id] = ports
+
+    def get_available_ports(self, station_id: str) -> list[dict] | None:
+        """None = nessun dato ricevuto (agent mai connesso/mai mandato hello),
+        distinto da [] (agent connesso ma nessuna porta seriale presente)."""
+        return self._available_ports.get(station_id)
 
     # --- Richieste request/response verso un agent (es. "prova la porta X") --
 

@@ -76,3 +76,17 @@ class DaqSourceTestResult(BaseModel):
     ok: bool
     message: str
     sample_raw: str | None = None
+
+
+class AvailablePortOut(BaseModel):
+    device: str
+    description: str
+    hwid: str
+
+
+class AvailablePortsOut(BaseModel):
+    agent_connected: bool
+    # None = l'agent non ha ancora mandato nessun "hello" da quando si e'
+    # connesso (dato non disponibile); lista vuota = ha risposto ma non vede
+    # nessuna porta seriale in questo momento - due situazioni diverse.
+    ports: list[AvailablePortOut] | None

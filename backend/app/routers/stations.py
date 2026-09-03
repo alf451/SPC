@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models.core import Site, Station
-from app.schemas.daq import SiteCreate, SiteOut, StationCreate, StationOut
+from app.schemas.daq import AvailablePortsOut, SiteCreate, SiteOut, StationCreate, StationOut
 from app.security import get_current_user
+from app.ws.connection_manager import manager
 
 sites_router = APIRouter(prefix="/api/sites", tags=["stations"], dependencies=[Depends(get_current_user)])
 
@@ -65,3 +66,23 @@ async def delete_station(station_id: int, session: Annotated[AsyncSession, Depen
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stazione non trovata")
     await session.delete(station)
     await session.commit()
+
+
+@router.get("/{station_id}/available-ports", response_model=AvailablePortsOut)
+async def get_available_ports(station_id: int, session: Annotated[AsyncSession, Depends(get_session)]) -> AvailablePortsOut:
+    """Porte seriali fisicamente presenti sulla stazione, riportate dall'Edge
+    Agent connesso ad essa nel messaggio "hello" (vedi ws/agent_hub.py e
+    edge-agent/edge_agent/port_scan.py) - permette di configurare una sorgente
+    DAQ scegliendo tra le porte davvero disponibili invece di scriverle a mano,
+    senza dover accedere via RDP alla stazione per controllare Gestione
+    dispositivi. Richiede che l'Edge Agent di quella stazione sia connesso
+    (altrimenti "agent_connected": false, "ports": null - nessun dato,
+    non un errore: e' una situazione normale se l'agent non e' ancora avviato).
+    """
+    station = await session.get(Station, station_id)
+    if station is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stazione non trovata")
+    station_key = str(station_id)
+    agent_connected = manager.get_agent(station_key) is not None
+    ports = manager.get_available_ports(station_key)
+    return AvailablePortsOut(agent_connected=agent_connected, ports=ports)

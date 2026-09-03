@@ -11,6 +11,7 @@ import websockets
 from edge_agent.config import AgentConfig
 from edge_agent.models import Reading
 from edge_agent.outbox import Outbox
+from edge_agent.port_scan import list_available_ports
 from edge_agent.sources.base import Source
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,13 @@ class WsClient:
 
     async def _send_hello(self) -> None:
         sources = [{"port": s.get("port") or s.get("device_path"), "channel_no": s.get("channel_no")} for s in self._config.sources]
-        await self._ws.send(json.dumps({"type": "hello", "sources": sources}))
+        # Porte seriali fisicamente presenti su QUESTA macchina in questo momento
+        # (non solo quelle gia' configurate in sources) - il backend le tiene da
+        # parte per il pannello admin/frontend, cosi' si vede cosa c'e' davvero
+        # collegato a una stazione senza doverci accedere via RDP.
+        await self._ws.send(
+            json.dumps({"type": "hello", "sources": sources, "available_ports": list_available_ports()})
+        )
 
     async def _receive_loop(self) -> None:
         async for raw in self._ws:

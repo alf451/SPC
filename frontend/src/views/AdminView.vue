@@ -75,6 +75,27 @@ const devices = ref([]);
 const sources = ref([]);
 const newDevice = reactive({ name: "", connection_type: "rs232", terminator: "\\r\\n" });
 const newSource = reactive({ station_id: "", device_id: "", name: "", port: "", channel_no: "" });
+const portScan = reactive({ loading: false, agentConnected: null, ports: null, error: "" });
+
+async function scanAvailablePorts() {
+  if (!newSource.station_id) return;
+  portScan.loading = true;
+  portScan.error = "";
+  portScan.ports = null;
+  try {
+    const res = await stationsApi.availablePorts(newSource.station_id);
+    portScan.agentConnected = res.agent_connected;
+    portScan.ports = res.ports;
+  } catch (e) {
+    portScan.error = e.message || "Impossibile interrogare la stazione.";
+  } finally {
+    portScan.loading = false;
+  }
+}
+
+function usePort(device) {
+  newSource.port = device;
+}
 const testResults = reactive({}); // { [sourceId]: {ok, message} }
 async function loadDaq() {
   [devices.value, sources.value] = await Promise.all([daqDevicesApi.list(), daqSourcesApi.list()]);
@@ -262,6 +283,27 @@ loadDaq();
           <input v-model="newSource.port" placeholder="Porta (es. COM3)" />
           <input v-model="newSource.channel_no" type="number" placeholder="Canale (opz.)" />
         </div>
+
+        <button style="margin-top: 8px" :disabled="!newSource.station_id || portScan.loading" @click="scanAvailablePorts">
+          {{ portScan.loading ? "Rilevamento..." : "Rileva porte disponibili sulla stazione" }}
+        </button>
+        <p class="hint" style="margin: 4px 0 0">Richiede l'Edge Agent gia' avviato su quella stazione (riporta le porte che vede lui in questo momento).</p>
+        <div v-if="portScan.error" class="error-box" style="margin-top: 8px">{{ portScan.error }}</div>
+        <div v-else-if="portScan.agentConnected === false" class="hint" style="margin-top: 8px">Nessun Edge Agent connesso per questa stazione in questo momento.</div>
+        <div v-else-if="portScan.ports !== null" style="margin-top: 8px">
+          <table v-if="portScan.ports.length">
+            <thead><tr><th>Porta</th><th>Descrizione</th><th></th></tr></thead>
+            <tbody>
+              <tr v-for="p in portScan.ports" :key="p.device">
+                <td class="mono">{{ p.device }}</td>
+                <td class="hint">{{ p.description || p.hwid || "-" }}</td>
+                <td><button @click="usePort(p.device)">Usa</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <span v-else class="hint">L'agent e' connesso ma non vede nessuna porta seriale in questo momento.</span>
+        </div>
+
         <button class="primary" style="margin-top: 8px" :disabled="!newSource.station_id || !newSource.device_id || !newSource.name" @click="createSource">Crea</button>
       </details>
     </div>

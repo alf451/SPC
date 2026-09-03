@@ -31,6 +31,7 @@ Tutte le altre route REST richiedono il bearer token. Autorizzazione granulare p
 | Users | `GET/POST /api/users` | il primo utente si crea con `backend/create_admin.py`, non via API (vedi TODO in `routers/users.py`) |
 | Sites | `GET/POST /api/sites` | |
 | **v0.2 — DAQ live** | `DELETE /api/daq-devices/{id}`, `DELETE /api/daq-sources/{id}`, `DELETE /api/feature-daq-bindings`, `POST /api/daq-sources/{id}/test` | il test chiede all'Edge Agent connesso lo stato reale della porta, vedi protocollo `test_source` sotto |
+| **v0.3 — Porte disponibili** | `GET /api/stations/{id}/available-ports` | porte seriali che l'Edge Agent di quella stazione vede in questo momento (dal messaggio `hello`, sotto) - `{agent_connected, ports}`, `ports: null` se l'agent non ha ancora mandato nessun hello |
 | **v0.2 — Tools/commesse** | `GET/POST /api/tools`, `GET /api/tools/{id}`, `GET /api/tools/{id}/positions`, `DELETE /api/tools/{id}` | "tool" generalizza stampo/fustella/attrezzatura; posizioni = cavità |
 | | `GET/POST /api/work-orders`, `GET /api/work-orders/{id}` | POST è l'endpoint di integrazione ERP — idempotente su `(external_system, external_id)`, vedi `docs/integrazione-erp.md` |
 | **v0.2 — Admin import** | `POST /api/admin/measurlink-import/test-connection`, `POST /api/admin/measurlink-import/run`, `GET /api/admin/measurlink-import/jobs/{id}`, `GET /api/admin/measurlink-import/jobs` | invoca in-process il tool in `import-measurlink/`, vedi quel README |
@@ -49,7 +50,7 @@ Messaggi JSON, campo `type`:
 
 | type | Direzione | Payload | Descrizione |
 |---|---|---|---|
-| `hello` | agent→server | `{sources: [{port, channel_no}, ...]}` | l'agent annuncia le sue sorgenti fisiche locali |
+| `hello` | agent→server | `{sources: [{port, channel_no}, ...], available_ports: [{device, description, hwid}, ...]}` | l'agent annuncia le sue sorgenti fisiche configurate **e** l'elenco di tutte le porte seriali che vede in questo momento (anche non ancora configurate) - **v0.3**, il server tiene solo l'ultimo elenco ricevuto per stazione, esposto via `GET /api/stations/{id}/available-ports` |
 | `config` | server→agent | `{active_run_id, daq_sources: [{port, channel_no, daq_source_id}], feature_bindings: [{feature_id, daq_source_id}]}` | il server risolve porta→daq_source_id e restituisce il binding Feature del Run attivo sulla stazione. **L'agent resta "dumb": non decide a quale Feature appartiene una lettura**, si limita a includere il `daq_source_id` corretto |
 | `reading` | agent→server | `{daq_source_id, raw_value, captured_at, ref}` | una singola lettura. `ref` è l'id della riga nell'outbox locale dell'agent, echeggiato nell'ack per permettere la correlazione. Il server risolve `daq_source_id` → `feature_id` (via `feature_daq_bindings` sulla Routine del Run attivo), determina se la Feature è `variable`/`attribute` e scrive in `measurements`/`attribute_observations` |
 | `ack` | server→agent | `{ok, ref, obs_no?, reason?}` | conferma scrittura (`reason`: `no_active_run` \| `unbound_daq_source`) — l'agent usa `ref` per rimuovere la riga corrispondente dall'outbox locale |
