@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models.daq import DaqDevice, DaqSource, FeatureDaqBinding
+from app.reference_check import check_not_referenced
 from app.schemas.daq import (
     DaqDeviceCreate,
     DaqDeviceOut,
@@ -94,6 +95,7 @@ async def delete_daq_device(device_id: int, session: Annotated[AsyncSession, Dep
     device = await session.get(DaqDevice, device_id)
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispositivo non trovato")
+    await check_not_referenced(session, "daq_devices", "id", device_id)
     await session.delete(device)
     await session.commit()
 
@@ -103,6 +105,7 @@ async def delete_daq_source(source_id: int, session: Annotated[AsyncSession, Dep
     source = await session.get(DaqSource, source_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sorgente non trovata")
+    await check_not_referenced(session, "daq_sources", "id", source_id)
     await session.delete(source)
     await session.commit()
 

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models.core import Site, Station
+from app.reference_check import check_not_referenced
 from app.schemas.daq import (
     AvailablePortsOut,
     SiteCreate,
@@ -46,6 +47,16 @@ async def update_site(site_id: int, payload: SiteUpdate, session: Annotated[Asyn
     await session.commit()
     await session.refresh(site)
     return site
+
+
+@sites_router.delete("/{site_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_site(site_id: int, session: Annotated[AsyncSession, Depends(get_session)]) -> None:
+    site = await session.get(Site, site_id)
+    if site is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sede non trovata")
+    await check_not_referenced(session, "sites", "id", site_id)
+    await session.delete(site)
+    await session.commit()
 
 
 router = APIRouter(prefix="/api/stations", tags=["stations"], dependencies=[Depends(get_current_user)])
@@ -98,6 +109,7 @@ async def delete_station(station_id: int, session: Annotated[AsyncSession, Depen
     station = await session.get(Station, station_id)
     if station is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stazione non trovata")
+    await check_not_referenced(session, "stations", "id", station_id)
     await session.delete(station)
     await session.commit()
 

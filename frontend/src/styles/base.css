@@ -47,6 +47,13 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* Campo obbligatorio non ancora compilato: bordo rosso finche' resta vuoto,
+   poi torna al bordo di default appena viene valorizzato (vedi isBlank() /
+   :class="{ invalid: ... }" nei form di AdminView.vue e simili). */
+input.invalid, select.invalid, textarea.invalid { border-color: var(--danger); }
+input.invalid:focus, select.invalid:focus, textarea.invalid:focus { outline-color: var(--danger); }
+.required-mark { color: var(--danger); margin-left: 2px; }
+
 label { font-size: 12px; color: var(--ink-2); display: block; margin-bottom: 4px; }
 
 .field { margin-bottom: 12px; }

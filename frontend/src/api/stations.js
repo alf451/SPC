@@ -4,6 +4,7 @@ export const sitesApi = {
   list: () => api.get("/api/sites"),
   create: (payload) => api.post("/api/sites", payload),
   update: (id, payload) => api.put(`/api/sites/${id}`, payload),
+  remove: (id) => api.delete(`/api/sites/${id}`),
 };
 
 export const stationsApi = {

@@ -12,6 +12,13 @@ import { daqDevicesApi, daqSourcesApi } from "../api/daq";
 const tab = ref("users");
 const error = ref("");
 
+// Un campo obbligatorio vuoto/solo spazi prende il bordo rosso finche' non
+// viene compilato (vedi input.invalid in styles/base.css), poi torna al
+// bordo di default da solo appena isBlank() ritorna false.
+function isBlank(v) {
+  return v === null || v === undefined || String(v).trim() === "";
+}
+
 // --- Utenti ---
 const users = ref([]);
 const newUser = reactive({ username: "", email: "", full_name: "", password: "" });
@@ -46,6 +53,16 @@ async function saveUser(id) {
     error.value = e.message || "Impossibile salvare le modifiche.";
   }
 }
+async function removeUser(id) {
+  if (!confirm("Eliminare questo utente?")) return;
+  error.value = "";
+  try {
+    await usersApi.remove(id);
+    await loadUsers();
+  } catch (e) {
+    error.value = e.message || "Impossibile eliminare l'utente.";
+  }
+}
 
 // --- Sedi & Stazioni ---
 const sites = ref([]);
@@ -78,6 +95,16 @@ async function saveSite(id) {
     await loadSitesAndStations();
   } catch (e) {
     error.value = e.message || "Impossibile salvare la sede.";
+  }
+}
+async function removeSite(id) {
+  if (!confirm("Eliminare questa sede?")) return;
+  error.value = "";
+  try {
+    await sitesApi.remove(id);
+    await loadSitesAndStations();
+  } catch (e) {
+    error.value = e.message || "Impossibile eliminare la sede.";
   }
 }
 
@@ -117,8 +144,13 @@ async function createStation() {
 }
 async function removeStation(id) {
   if (!confirm("Eliminare questa stazione?")) return;
-  await stationsApi.remove(id);
-  await loadSitesAndStations();
+  error.value = "";
+  try {
+    await stationsApi.remove(id);
+    await loadSitesAndStations();
+  } catch (e) {
+    error.value = e.message || "Impossibile eliminare la stazione.";
+  }
 }
 function siteName(id) {
   return sites.value.find((s) => s.id === id)?.name || `#${id}`;
@@ -179,6 +211,16 @@ async function saveDevice(id) {
     error.value = e.message || "Impossibile salvare il dispositivo.";
   }
 }
+async function removeDevice(id) {
+  if (!confirm("Eliminare questo profilo dispositivo?")) return;
+  error.value = "";
+  try {
+    await daqDevicesApi.remove(id);
+    await loadDaq();
+  } catch (e) {
+    error.value = e.message || "Impossibile eliminare il dispositivo.";
+  }
+}
 
 const editSource = reactive({}); // { [sourceId]: {station_id, device_id, name, port, channel_no} }
 function startEditSource(s) {
@@ -226,8 +268,13 @@ async function createSource() {
 }
 async function removeSource(id) {
   if (!confirm("Eliminare questa sorgente?")) return;
-  await daqSourcesApi.remove(id);
-  await loadDaq();
+  error.value = "";
+  try {
+    await daqSourcesApi.remove(id);
+    await loadDaq();
+  } catch (e) {
+    error.value = e.message || "Impossibile eliminare la sorgente.";
+  }
 }
 async function testSource(id) {
   testResults[id] = { ok: null, message: "Test in corso..." };
@@ -266,18 +313,33 @@ loadDaq();
             <td>{{ u.full_name || "-" }}</td>
             <td class="hint">{{ u.email || "-" }}</td>
             <td><span class="badge" :class="u.status === 'active' ? 'ok' : 'neutral'">{{ u.status }}</span></td>
-            <td><button @click="startEditUser(u)">Modifica</button></td>
+            <td>
+              <button @click="startEditUser(u)">Modifica</button>
+              <button class="danger" @click="removeUser(u.id)">Elimina</button>
+            </td>
           </tr>
           <tr v-if="editUser[u.id]">
             <td colspan="5">
               <div class="grid grid-2">
-                <input v-model="editUser[u.id].full_name" placeholder="Nome completo" />
-                <input v-model="editUser[u.id].email" placeholder="Email" />
-                <select v-model="editUser[u.id].status">
-                  <option value="active">active</option>
-                  <option value="disabled">disabled</option>
-                </select>
-                <input v-model="editUser[u.id].password" type="password" placeholder="Nuova password (lascia vuoto per non cambiarla)" />
+                <div class="field">
+                  <label>Nome completo</label>
+                  <input v-model="editUser[u.id].full_name" />
+                </div>
+                <div class="field">
+                  <label>Email</label>
+                  <input v-model="editUser[u.id].email" />
+                </div>
+                <div class="field">
+                  <label>Stato</label>
+                  <select v-model="editUser[u.id].status">
+                    <option value="active">active</option>
+                    <option value="disabled">disabled</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Nuova password</label>
+                  <input v-model="editUser[u.id].password" type="password" placeholder="lascia vuoto per non cambiarla" />
+                </div>
               </div>
               <button class="primary" style="margin-top: 6px" @click="saveUser(u.id)">Salva</button>
               <button style="margin-top: 6px" @click="delete editUser[u.id]">Annulla</button>
@@ -290,10 +352,22 @@ loadDaq();
     <details style="margin-top: 12px">
       <summary class="hint" style="cursor: pointer">Nuovo utente</summary>
       <div class="grid grid-2" style="margin-top: 8px">
-        <input v-model="newUser.username" placeholder="Utente" />
-        <input v-model="newUser.password" type="password" placeholder="Password" />
-        <input v-model="newUser.full_name" placeholder="Nome completo (opz.)" />
-        <input v-model="newUser.email" placeholder="Email (opz.)" />
+        <div class="field">
+          <label>Utente<span class="required-mark">*</span></label>
+          <input v-model="newUser.username" :class="{ invalid: isBlank(newUser.username) }" />
+        </div>
+        <div class="field">
+          <label>Password<span class="required-mark">*</span></label>
+          <input v-model="newUser.password" type="password" :class="{ invalid: isBlank(newUser.password) }" />
+        </div>
+        <div class="field">
+          <label>Nome completo</label>
+          <input v-model="newUser.full_name" />
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input v-model="newUser.email" />
+        </div>
       </div>
       <button class="primary" style="margin-top: 8px" :disabled="!newUser.username || !newUser.password" @click="createUser">Crea</button>
     </details>
@@ -307,13 +381,19 @@ loadDaq();
           <template v-for="s in sites" :key="s.id">
             <tr>
               <td>{{ s.name }}</td>
-              <td><button @click="startEditSite(s)">Modifica</button></td>
+              <td>
+                <button @click="startEditSite(s)">Modifica</button>
+                <button class="danger" @click="removeSite(s.id)">Elimina</button>
+              </td>
             </tr>
             <tr v-if="editSite[s.id]">
               <td colspan="2">
-                <input v-model="editSite[s.id].name" style="width: 100%" />
-                <button class="primary" style="margin-top: 6px" @click="saveSite(s.id)">Salva</button>
-                <button style="margin-top: 6px" @click="delete editSite[s.id]">Annulla</button>
+                <div class="field">
+                  <label>Nome<span class="required-mark">*</span></label>
+                  <input v-model="editSite[s.id].name" :class="{ invalid: isBlank(editSite[s.id].name) }" style="width: 100%" />
+                </div>
+                <button class="primary" :disabled="isBlank(editSite[s.id].name)" @click="saveSite(s.id)">Salva</button>
+                <button @click="delete editSite[s.id]">Annulla</button>
               </td>
             </tr>
           </template>
@@ -322,8 +402,11 @@ loadDaq();
       </table>
       <details style="margin-top: 12px">
         <summary class="hint" style="cursor: pointer">Nuova sede</summary>
-        <input v-model="newSite.name" placeholder="Nome sede" style="width: 100%; margin-top: 8px" />
-        <button class="primary" style="margin-top: 8px" :disabled="!newSite.name" @click="createSite">Crea</button>
+        <div class="field" style="margin-top: 8px">
+          <label>Nome<span class="required-mark">*</span></label>
+          <input v-model="newSite.name" :class="{ invalid: isBlank(newSite.name) }" style="width: 100%" />
+        </div>
+        <button class="primary" :disabled="!newSite.name" @click="createSite">Crea</button>
       </details>
     </div>
     <div class="panel">
@@ -344,12 +427,23 @@ loadDaq();
             <tr v-if="editStation[s.id]">
               <td colspan="4">
                 <div class="grid grid-3">
-                  <select v-model="editStation[s.id].site_id"><option v-for="site in sites" :key="site.id" :value="site.id">{{ site.name }}</option></select>
-                  <input v-model="editStation[s.id].name" placeholder="Nome stazione" />
-                  <input v-model="editStation[s.id].computer_name" placeholder="Nome PC (opz.)" />
+                  <div class="field">
+                    <label>Sede<span class="required-mark">*</span></label>
+                    <select v-model="editStation[s.id].site_id" :class="{ invalid: isBlank(editStation[s.id].site_id) }">
+                      <option v-for="site in sites" :key="site.id" :value="site.id">{{ site.name }}</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Nome stazione<span class="required-mark">*</span></label>
+                    <input v-model="editStation[s.id].name" :class="{ invalid: isBlank(editStation[s.id].name) }" />
+                  </div>
+                  <div class="field">
+                    <label>Nome PC</label>
+                    <input v-model="editStation[s.id].computer_name" />
+                  </div>
                 </div>
-                <button class="primary" style="margin-top: 6px" @click="saveStation(s.id)">Salva</button>
-                <button style="margin-top: 6px" @click="delete editStation[s.id]">Annulla</button>
+                <button class="primary" :disabled="isBlank(editStation[s.id].site_id) || isBlank(editStation[s.id].name)" @click="saveStation(s.id)">Salva</button>
+                <button @click="delete editStation[s.id]">Annulla</button>
               </td>
             </tr>
           </template>
@@ -359,11 +453,23 @@ loadDaq();
       <details style="margin-top: 12px">
         <summary class="hint" style="cursor: pointer">Nuova stazione</summary>
         <div class="grid grid-2" style="margin-top: 8px">
-          <select v-model="newStation.site_id"><option value="">Sede</option><option v-for="s in sites" :key="s.id" :value="s.id">{{ s.name }}</option></select>
-          <input v-model="newStation.name" placeholder="Nome stazione" />
-          <input v-model="newStation.computer_name" placeholder="Nome PC (opz.)" />
+          <div class="field">
+            <label>Sede<span class="required-mark">*</span></label>
+            <select v-model="newStation.site_id" :class="{ invalid: isBlank(newStation.site_id) }">
+              <option value="">-- scegli --</option>
+              <option v-for="s in sites" :key="s.id" :value="s.id">{{ s.name }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Nome stazione<span class="required-mark">*</span></label>
+            <input v-model="newStation.name" :class="{ invalid: isBlank(newStation.name) }" />
+          </div>
+          <div class="field">
+            <label>Nome PC</label>
+            <input v-model="newStation.computer_name" />
+          </div>
         </div>
-        <button class="primary" style="margin-top: 8px" :disabled="!newStation.site_id || !newStation.name" @click="createStation">Crea</button>
+        <button class="primary" :disabled="!newStation.site_id || !newStation.name" @click="createStation">Crea</button>
       </details>
     </div>
   </div>
@@ -378,22 +484,31 @@ loadDaq();
             <tr>
               <td>{{ d.name }}</td>
               <td class="hint">{{ d.connection_type }}</td>
-              <td><button @click="startEditDevice(d)">Modifica</button></td>
+              <td>
+                <button @click="startEditDevice(d)">Modifica</button>
+                <button class="danger" @click="removeDevice(d.id)">Elimina</button>
+              </td>
             </tr>
             <tr v-if="editDevice[d.id]">
               <td colspan="3">
                 <div class="grid grid-2">
-                  <input v-model="editDevice[d.id].name" placeholder="Nome" />
-                  <select v-model="editDevice[d.id].connection_type">
-                    <option value="rs232">RS232</option>
-                    <option value="usb_hid">USB-HID</option>
-                    <option value="manual">Manuale</option>
-                    <option value="opcua">OPC-UA</option>
-                    <option value="mtconnect">MTConnect</option>
-                  </select>
+                  <div class="field">
+                    <label>Nome<span class="required-mark">*</span></label>
+                    <input v-model="editDevice[d.id].name" :class="{ invalid: isBlank(editDevice[d.id].name) }" />
+                  </div>
+                  <div class="field">
+                    <label>Tipo connessione<span class="required-mark">*</span></label>
+                    <select v-model="editDevice[d.id].connection_type">
+                      <option value="rs232">RS232</option>
+                      <option value="usb_hid">USB-HID</option>
+                      <option value="manual">Manuale</option>
+                      <option value="opcua">OPC-UA</option>
+                      <option value="mtconnect">MTConnect</option>
+                    </select>
+                  </div>
                 </div>
-                <button class="primary" style="margin-top: 6px" @click="saveDevice(d.id)">Salva</button>
-                <button style="margin-top: 6px" @click="delete editDevice[d.id]">Annulla</button>
+                <button class="primary" :disabled="isBlank(editDevice[d.id].name)" @click="saveDevice(d.id)">Salva</button>
+                <button @click="delete editDevice[d.id]">Annulla</button>
               </td>
             </tr>
           </template>
@@ -403,16 +518,22 @@ loadDaq();
       <details style="margin-top: 12px">
         <summary class="hint" style="cursor: pointer">Nuovo profilo dispositivo</summary>
         <div class="grid grid-2" style="margin-top: 8px">
-          <input v-model="newDevice.name" placeholder="Nome" />
-          <select v-model="newDevice.connection_type">
-            <option value="rs232">RS232</option>
-            <option value="usb_hid">USB-HID</option>
-            <option value="manual">Manuale</option>
-            <option value="opcua">OPC-UA</option>
-            <option value="mtconnect">MTConnect</option>
-          </select>
+          <div class="field">
+            <label>Nome<span class="required-mark">*</span></label>
+            <input v-model="newDevice.name" :class="{ invalid: isBlank(newDevice.name) }" />
+          </div>
+          <div class="field">
+            <label>Tipo connessione<span class="required-mark">*</span></label>
+            <select v-model="newDevice.connection_type">
+              <option value="rs232">RS232</option>
+              <option value="usb_hid">USB-HID</option>
+              <option value="manual">Manuale</option>
+              <option value="opcua">OPC-UA</option>
+              <option value="mtconnect">MTConnect</option>
+            </select>
+          </div>
         </div>
-        <button class="primary" style="margin-top: 8px" :disabled="!newDevice.name" @click="createDevice">Crea</button>
+        <button class="primary" :disabled="!newDevice.name" @click="createDevice">Crea</button>
       </details>
     </div>
     <div class="panel">
@@ -440,14 +561,33 @@ loadDaq();
             <tr v-if="editSource[s.id]">
               <td colspan="4">
                 <div class="grid grid-3">
-                  <select v-model="editSource[s.id].station_id"><option v-for="st in stations" :key="st.id" :value="st.id">{{ st.name }}</option></select>
-                  <select v-model="editSource[s.id].device_id"><option v-for="d in devices" :key="d.id" :value="d.id">{{ d.name }}</option></select>
-                  <input v-model="editSource[s.id].name" placeholder="Nome sorgente" />
-                  <input v-model="editSource[s.id].port" placeholder="Porta" />
-                  <input v-model="editSource[s.id].channel_no" type="number" placeholder="Canale (opz.)" />
+                  <div class="field">
+                    <label>Stazione<span class="required-mark">*</span></label>
+                    <select v-model="editSource[s.id].station_id" :class="{ invalid: isBlank(editSource[s.id].station_id) }">
+                      <option v-for="st in stations" :key="st.id" :value="st.id">{{ st.name }}</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Dispositivo<span class="required-mark">*</span></label>
+                    <select v-model="editSource[s.id].device_id" :class="{ invalid: isBlank(editSource[s.id].device_id) }">
+                      <option v-for="d in devices" :key="d.id" :value="d.id">{{ d.name }}</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Nome sorgente<span class="required-mark">*</span></label>
+                    <input v-model="editSource[s.id].name" :class="{ invalid: isBlank(editSource[s.id].name) }" />
+                  </div>
+                  <div class="field">
+                    <label>Porta</label>
+                    <input v-model="editSource[s.id].port" />
+                  </div>
+                  <div class="field">
+                    <label>Canale</label>
+                    <input v-model="editSource[s.id].channel_no" type="number" />
+                  </div>
                 </div>
-                <button class="primary" style="margin-top: 6px" @click="saveSource(s.id)">Salva</button>
-                <button style="margin-top: 6px" @click="delete editSource[s.id]">Annulla</button>
+                <button class="primary" :disabled="isBlank(editSource[s.id].station_id) || isBlank(editSource[s.id].device_id) || isBlank(editSource[s.id].name)" @click="saveSource(s.id)">Salva</button>
+                <button @click="delete editSource[s.id]">Annulla</button>
               </td>
             </tr>
           </template>
@@ -457,11 +597,32 @@ loadDaq();
       <details style="margin-top: 12px">
         <summary class="hint" style="cursor: pointer">Nuova sorgente DAQ</summary>
         <div class="grid grid-2" style="margin-top: 8px">
-          <select v-model="newSource.station_id"><option value="">Stazione</option><option v-for="s in stations" :key="s.id" :value="s.id">{{ s.name }}</option></select>
-          <select v-model="newSource.device_id"><option value="">Dispositivo</option><option v-for="d in devices" :key="d.id" :value="d.id">{{ d.name }}</option></select>
-          <input v-model="newSource.name" placeholder="Nome sorgente" />
-          <input v-model="newSource.port" placeholder="Porta (es. COM3)" />
-          <input v-model="newSource.channel_no" type="number" placeholder="Canale (opz.)" />
+          <div class="field">
+            <label>Stazione<span class="required-mark">*</span></label>
+            <select v-model="newSource.station_id" :class="{ invalid: isBlank(newSource.station_id) }">
+              <option value="">-- scegli --</option>
+              <option v-for="s in stations" :key="s.id" :value="s.id">{{ s.name }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Dispositivo<span class="required-mark">*</span></label>
+            <select v-model="newSource.device_id" :class="{ invalid: isBlank(newSource.device_id) }">
+              <option value="">-- scegli --</option>
+              <option v-for="d in devices" :key="d.id" :value="d.id">{{ d.name }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Nome sorgente<span class="required-mark">*</span></label>
+            <input v-model="newSource.name" :class="{ invalid: isBlank(newSource.name) }" />
+          </div>
+          <div class="field">
+            <label>Porta</label>
+            <input v-model="newSource.port" placeholder="es. COM3" />
+          </div>
+          <div class="field">
+            <label>Canale</label>
+            <input v-model="newSource.channel_no" type="number" />
+          </div>
         </div>
 
         <button style="margin-top: 8px" :disabled="!newSource.station_id || portScan.loading" @click="scanAvailablePorts">

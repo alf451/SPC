@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
+from app.reference_check import ReferencedElsewhereError
 from app.routers import (
     admin_import,
     auth,
@@ -70,6 +71,18 @@ async def _integrity_error_handler(request: Request, exc: IntegrityError) -> JSO
     )
 
 
+async def _referenced_elsewhere_handler(request: Request, exc: ReferencedElsewhereError) -> JSONResponse:
+    """Controllo PROATTIVO (vedi app/reference_check.py): a differenza di
+    _integrity_error_handler sopra, che reagisce al primo vincolo che
+    Postgres incontra provando davvero l'eliminazione, questo elenca TUTTE
+    le tabelle coinvolte in un colpo solo, controllate prima di tentare la
+    DELETE.
+    """
+    tables = ", ".join(f"{r['friendly_name']} ({r['count']} record)" for r in exc.references)
+    message = f"Impossibile eliminare: ancora utilizzato in → {tables}. Rimuovere prima quei riferimenti."
+    return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": message})
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="leank-spc API", version="0.1.0")
 
@@ -82,6 +95,7 @@ def create_app() -> FastAPI:
     )
 
     app.add_exception_handler(IntegrityError, _integrity_error_handler)
+    app.add_exception_handler(ReferencedElsewhereError, _referenced_elsewhere_handler)
 
     for router in (
         auth.router,
