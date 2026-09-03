@@ -9,9 +9,11 @@ from app.models.daq import DaqDevice, DaqSource, FeatureDaqBinding
 from app.schemas.daq import (
     DaqDeviceCreate,
     DaqDeviceOut,
+    DaqDeviceUpdate,
     DaqSourceCreate,
     DaqSourceOut,
     DaqSourceTestResult,
+    DaqSourceUpdate,
     FeatureDaqBindingCreate,
 )
 from app.security import get_current_user
@@ -54,6 +56,34 @@ async def create_daq_source(
 ) -> DaqSource:
     source = DaqSource(**payload.model_dump())
     session.add(source)
+    await session.commit()
+    await session.refresh(source)
+    return source
+
+
+@router.put("/daq-devices/{device_id}", response_model=DaqDeviceOut)
+async def update_daq_device(
+    device_id: int, payload: DaqDeviceUpdate, session: Annotated[AsyncSession, Depends(get_session)]
+) -> DaqDevice:
+    device = await session.get(DaqDevice, device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispositivo non trovato")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(device, key, value)
+    await session.commit()
+    await session.refresh(device)
+    return device
+
+
+@router.put("/daq-sources/{source_id}", response_model=DaqSourceOut)
+async def update_daq_source(
+    source_id: int, payload: DaqSourceUpdate, session: Annotated[AsyncSession, Depends(get_session)]
+) -> DaqSource:
+    source = await session.get(DaqSource, source_id)
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sorgente non trovata")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(source, key, value)
     await session.commit()
     await session.refresh(source)
     return source

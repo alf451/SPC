@@ -22,16 +22,28 @@ Tutte le altre route REST richiedono il bearer token. Autorizzazione granulare p
 | Routine features | `GET /api/routines/{id}/features`, `PUT /api/routines/{id}/features/{feature_id}` | binding N:N con ordine |
 | Runs | `GET/POST /api/runs`, `GET /api/runs/{id}`, `POST /api/runs/{id}/complete` | |
 | Measurements | `GET/POST /api/runs/{run_id}/measurements` | POST è per inserimento **manuale**; le misure da strumento arrivano via WS (vedi sotto) |
-| Stations | `GET/POST /api/stations`, `GET /api/stations/{id}` | |
-| DAQ devices | `GET/POST /api/daq-devices` | profilo dispositivo (RS232/USB-HID/...), parametri in `config` jsonb |
-| DAQ sources | `GET/POST /api/daq-sources` | porta/canale fisico su una stazione |
+| Stations | `GET/POST /api/stations`, `GET /api/stations/{id}`, `PUT /api/stations/{id}` | |
+| DAQ devices | `GET/POST /api/daq-devices`, `PUT /api/daq-devices/{id}` | profilo dispositivo (RS232/USB-HID/...), parametri in `config` jsonb |
+| DAQ sources | `GET/POST /api/daq-sources`, `PUT /api/daq-sources/{id}` | porta/canale fisico su una stazione |
 | Feature↔DAQ binding | `PUT /api/feature-daq-bindings` | quale sorgente alimenta quale Feature per una Routine |
 | Gages | `GET/POST /api/gages`, `GET /api/gages/{id}` | |
 | Calibrations | `GET/POST /api/calibrations`, `POST /api/calibrations/{id}/results`, `POST /api/calibrations/{id}/complete`, `POST /api/calibrations/{id}/certificate` | generazione certificato ancora stub (TODO template HTML) |
-| Users | `GET/POST /api/users` | il primo utente si crea con `backend/create_admin.py`, non via API (vedi TODO in `routers/users.py`) |
-| Sites | `GET/POST /api/sites` | |
+| Users | `GET/POST /api/users`, `PUT /api/users/{id}` | il primo utente si crea con `backend/create_admin.py`, non via API (vedi TODO in `routers/users.py`); PUT non permette di cambiare `username`, `password` opzionale nel payload (se presente, resetta la password) |
+| Sites | `GET/POST /api/sites`, `PUT /api/sites/{id}` | |
 | **v0.2 — DAQ live** | `DELETE /api/daq-devices/{id}`, `DELETE /api/daq-sources/{id}`, `DELETE /api/feature-daq-bindings`, `POST /api/daq-sources/{id}/test` | il test chiede all'Edge Agent connesso lo stato reale della porta, vedi protocollo `test_source` sotto |
 | **v0.3 — Porte disponibili** | `GET /api/stations/{id}/available-ports` | porte seriali che l'Edge Agent di quella stazione vede in questo momento (dal messaggio `hello`, sotto) - `{agent_connected, ports}`, `ports: null` se l'agent non ha ancora mandato nessun hello |
+
+Tutti gli endpoint `PUT` sopra accettano un payload **parziale**: solo i campi presenti nel JSON vengono aggiornati (`model_dump(exclude_unset=True)` lato backend), gli altri restano invariati — non serve reinviare l'oggetto intero per modificare un solo campo.
+
+### Errori — violazioni di vincolo del database
+
+Un tentativo di creare/modificare un elemento che violerebbe un vincolo del database (es. un nome già usato, un riferimento ancora in uso da qualcos'altro) risponde con **409 Conflict** e un messaggio comprensibile invece di un generico 500, es.:
+
+```json
+{"detail": "Esiste già un elemento con username = \"admin\" - scegli un valore diverso."}
+```
+
+Gestito centralmente in `app/main.py` (`_integrity_error_handler`, intercetta `sqlalchemy.exc.IntegrityError`) — vale per ogni endpoint automaticamente, nessun `try/except` da ripetere router per router. Riconosce il tipo di violazione dal nome della classe di eccezione asyncpg (`UniqueViolationError`/`ForeignKeyViolationError`), non dal testo del messaggio Postgres — quel testo è nella lingua configurata sul server (qui: italiano) e non è quindi affidabile per il riconoscimento.
 | **v0.2 — Tools/commesse** | `GET/POST /api/tools`, `GET /api/tools/{id}`, `GET /api/tools/{id}/positions`, `DELETE /api/tools/{id}` | "tool" generalizza stampo/fustella/attrezzatura; posizioni = cavità |
 | | `GET/POST /api/work-orders`, `GET /api/work-orders/{id}` | POST è l'endpoint di integrazione ERP — idempotente su `(external_system, external_id)`, vedi `docs/integrazione-erp.md` |
 | **v0.2 — Admin import** | `POST /api/admin/measurlink-import/test-connection`, `POST /api/admin/measurlink-import/run`, `GET /api/admin/measurlink-import/jobs/{id}`, `GET /api/admin/measurlink-import/jobs` | invoca in-process il tool in `import-measurlink/`, vedi quel README |

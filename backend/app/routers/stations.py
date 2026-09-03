@@ -6,7 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models.core import Site, Station
-from app.schemas.daq import AvailablePortsOut, SiteCreate, SiteOut, StationCreate, StationOut
+from app.schemas.daq import (
+    AvailablePortsOut,
+    SiteCreate,
+    SiteOut,
+    SiteUpdate,
+    StationCreate,
+    StationOut,
+    StationUpdate,
+)
 from app.security import get_current_user
 from app.ws.connection_manager import manager
 
@@ -23,6 +31,18 @@ async def list_sites(session: Annotated[AsyncSession, Depends(get_session)]) -> 
 async def create_site(payload: SiteCreate, session: Annotated[AsyncSession, Depends(get_session)]) -> Site:
     site = Site(**payload.model_dump())
     session.add(site)
+    await session.commit()
+    await session.refresh(site)
+    return site
+
+
+@sites_router.put("/{site_id}", response_model=SiteOut)
+async def update_site(site_id: int, payload: SiteUpdate, session: Annotated[AsyncSession, Depends(get_session)]) -> Site:
+    site = await session.get(Site, site_id)
+    if site is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sede non trovata")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(site, key, value)
     await session.commit()
     await session.refresh(site)
     return site
@@ -56,6 +76,20 @@ async def get_station(station_id: int, session: Annotated[AsyncSession, Depends(
     station = await session.get(Station, station_id)
     if station is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stazione non trovata")
+    return station
+
+
+@router.put("/{station_id}", response_model=StationOut)
+async def update_station(
+    station_id: int, payload: StationUpdate, session: Annotated[AsyncSession, Depends(get_session)]
+) -> Station:
+    station = await session.get(Station, station_id)
+    if station is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stazione non trovata")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(station, key, value)
+    await session.commit()
+    await session.refresh(station)
     return station
 
 

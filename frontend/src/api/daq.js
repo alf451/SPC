@@ -3,12 +3,14 @@ import { api } from "./client";
 export const daqDevicesApi = {
   list: () => api.get("/api/daq-devices"),
   create: (payload) => api.post("/api/daq-devices", payload),
+  update: (id, payload) => api.put(`/api/daq-devices/${id}`, payload),
   remove: (id) => api.delete(`/api/daq-devices/${id}`),
 };
 
 export const daqSourcesApi = {
   list: (params) => api.get("/api/daq-sources", params),
   create: (payload) => api.post("/api/daq-sources", payload),
+  update: (id, payload) => api.put(`/api/daq-sources/${id}`, payload),
   remove: (id) => api.delete(`/api/daq-sources/${id}`),
   test: (id) => api.post(`/api/daq-sources/${id}/test`),
 };

@@ -41,3 +41,45 @@ Windows moderno. Il limite è che serve Chrome/Edge e un "contesto sicuro" —
 compromesso ragionevole per uno strumento diagnostico usato una tantum
 durante il collaudo, non per l'uso quotidiano (quello lo fa l'Edge Agent vero,
 in Python).
+
+## network-device-scanner.ps1 — Scoprire PC in rete e i loro dispositivi COM/USB
+
+Strumento diagnostico **precedente** alla configurazione vera e propria:
+serve a capire "cosa c'è collegato a quel PC" **da remoto**, senza doverci
+accedere via RDP e senza che l'Edge Agent sia già installato lì (per quello,
+una volta che l'Edge Agent gira su una stazione, il frontend stesso mostra le
+sue porte disponibili — vedi `GET /api/stations/{id}/available-ports` in
+`docs/api.md` — questo script serve per la fase *prima* di quel punto).
+
+Non è una pagina web: un browser non ha modo di scansionare una rete o
+interrogare WMI su un'altra macchina. È uno script PowerShell con una piccola
+interfaccia grafica nativa (Windows Forms).
+
+### Come usarlo
+
+```powershell
+powershell -ExecutionPolicy Bypass -File network-device-scanner.ps1
+```
+
+(o doppio click, se l'associazione file `.ps1` lo permette)
+
+1. Inserire la sottorete (es. `192.168.1`, precompilata da sola con quella di
+   questo PC) e premere **"Scansiona rete"** — ping su `.1`-`.254`, qualche
+   secondo
+2. Selezionare un PC dall'elenco (doppio click, o selezione + pulsante
+   **"Elenca dispositivi COM/USB"**)
+3. L'elenco a destra mostra i dispositivi COM/USB trovati via WMI
+   (`Win32_PnPEntity`) su quel PC
+
+### Requisiti e limiti
+
+- Usa `Get-CimInstance -ComputerName` (WMI/DCOM) — **non richiede** PowerShell
+  Remoting/WinRM abilitato sul PC remoto, più probabile che funzioni "di
+  serie" su una LAN aziendale tipica
+- Serve però che il firewall del PC remoto permetta **"Windows Management
+  Instrumentation (WMI)"** in ingresso, e credenziali con diritti sufficienti
+  su quella macchina (di default usa l'utente della sessione corrente sullo
+  script; la casella "Usa credenziali diverse" chiede username/password
+  alternativi)
+- Se l'interrogazione fallisce, il log nello script riporta la causa più
+  probabile (firewall, credenziali, PC non raggiungibile via DCOM)

@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,17 @@ class UserCreate(BaseModel):
     password: str
 
 
+class UserUpdate(BaseModel):
+    # "username" volutamente escluso: e' l'identificativo di login, cambiarlo
+    # e' un'operazione piu' delicata (andrebbe pensata a parte, non un campo
+    # di modifica qualunque). "password" opzionale: se presente resetta la
+    # password, altrimenti resta quella esistente.
+    email: str | None = None
+    full_name: str | None = None
+    status: str | None = None
+    password: str | None = None
+
+
 @router.get("", response_model=list[UserOut])
 async def list_users(session: Annotated[AsyncSession, Depends(get_session)]) -> list[User]:
     result = await session.execute(select(User).order_by(User.username))
@@ -40,6 +51,24 @@ async def create_user(payload: UserCreate, session: Annotated[AsyncSession, Depe
         password_hash=hash_password(payload.password),
     )
     session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+@router.put("/{user_id}", response_model=UserOut)
+async def update_user(
+    user_id: int, payload: UserUpdate, session: Annotated[AsyncSession, Depends(get_session)]
+) -> User:
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utente non trovato")
+    data = payload.model_dump(exclude_unset=True)
+    new_password = data.pop("password", None)
+    for key, value in data.items():
+        setattr(user, key, value)
+    if new_password:
+        user.password_hash = hash_password(new_password)
     await session.commit()
     await session.refresh(user)
     return user

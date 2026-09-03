@@ -29,6 +29,24 @@ async function createUser() {
   }
 }
 
+const editUser = reactive({}); // { [userId]: {email, full_name, status, password} }
+function startEditUser(u) {
+  editUser[u.id] = { email: u.email || "", full_name: u.full_name || "", status: u.status, password: "" };
+}
+async function saveUser(id) {
+  error.value = "";
+  try {
+    const form = editUser[id];
+    const payload = { email: form.email || null, full_name: form.full_name || null, status: form.status };
+    if (form.password) payload.password = form.password;
+    await usersApi.update(id, payload);
+    delete editUser[id];
+    await loadUsers();
+  } catch (e) {
+    error.value = e.message || "Impossibile salvare le modifiche.";
+  }
+}
+
 // --- Sedi & Stazioni ---
 const sites = ref([]);
 const stations = ref([]);
@@ -47,6 +65,42 @@ async function createSite() {
     error.value = e.message || "Impossibile creare la sede.";
   }
 }
+
+const editSite = reactive({}); // { [siteId]: {name} }
+function startEditSite(s) {
+  editSite[s.id] = { name: s.name };
+}
+async function saveSite(id) {
+  error.value = "";
+  try {
+    await sitesApi.update(id, { name: editSite[id].name });
+    delete editSite[id];
+    await loadSitesAndStations();
+  } catch (e) {
+    error.value = e.message || "Impossibile salvare la sede.";
+  }
+}
+
+const editStation = reactive({}); // { [stationId]: {site_id, name, computer_name} }
+function startEditStation(s) {
+  editStation[s.id] = { site_id: s.site_id, name: s.name, computer_name: s.computer_name || "" };
+}
+async function saveStation(id) {
+  error.value = "";
+  try {
+    const form = editStation[id];
+    await stationsApi.update(id, {
+      site_id: Number(form.site_id),
+      name: form.name,
+      computer_name: form.computer_name || null,
+    });
+    delete editStation[id];
+    await loadSitesAndStations();
+  } catch (e) {
+    error.value = e.message || "Impossibile salvare la stazione.";
+  }
+}
+
 async function createStation() {
   error.value = "";
   try {
@@ -110,6 +164,50 @@ async function createDevice() {
     error.value = e.message || "Impossibile creare il dispositivo.";
   }
 }
+
+const editDevice = reactive({}); // { [deviceId]: {name, connection_type} }
+function startEditDevice(d) {
+  editDevice[d.id] = { name: d.name, connection_type: d.connection_type };
+}
+async function saveDevice(id) {
+  error.value = "";
+  try {
+    await daqDevicesApi.update(id, editDevice[id]);
+    delete editDevice[id];
+    await loadDaq();
+  } catch (e) {
+    error.value = e.message || "Impossibile salvare il dispositivo.";
+  }
+}
+
+const editSource = reactive({}); // { [sourceId]: {station_id, device_id, name, port, channel_no} }
+function startEditSource(s) {
+  editSource[s.id] = {
+    station_id: s.station_id,
+    device_id: s.device_id,
+    name: s.name,
+    port: s.port || "",
+    channel_no: s.channel_no ?? "",
+  };
+}
+async function saveSource(id) {
+  error.value = "";
+  try {
+    const form = editSource[id];
+    await daqSourcesApi.update(id, {
+      station_id: Number(form.station_id),
+      device_id: Number(form.device_id),
+      name: form.name,
+      port: form.port || null,
+      channel_no: form.channel_no === "" ? null : Number(form.channel_no),
+    });
+    delete editSource[id];
+    await loadDaq();
+  } catch (e) {
+    error.value = e.message || "Impossibile salvare la sorgente.";
+  }
+}
+
 async function createSource() {
   error.value = "";
   try {
@@ -160,15 +258,33 @@ loadDaq();
   <div v-if="tab === 'users'" class="panel">
     <div class="panel-head"><h3>Utenti</h3><span class="hint">{{ users.length }}</span></div>
     <table>
-      <thead><tr><th>Utente</th><th>Nome</th><th>Email</th><th>Stato</th></tr></thead>
+      <thead><tr><th>Utente</th><th>Nome</th><th>Email</th><th>Stato</th><th></th></tr></thead>
       <tbody>
-        <tr v-for="u in users" :key="u.id">
-          <td class="mono">{{ u.username }}</td>
-          <td>{{ u.full_name || "-" }}</td>
-          <td class="hint">{{ u.email || "-" }}</td>
-          <td><span class="badge" :class="u.status === 'active' ? 'ok' : 'neutral'">{{ u.status }}</span></td>
-        </tr>
-        <tr v-if="users.length === 0"><td colspan="4" class="hint">Nessun utente.</td></tr>
+        <template v-for="u in users" :key="u.id">
+          <tr>
+            <td class="mono">{{ u.username }}</td>
+            <td>{{ u.full_name || "-" }}</td>
+            <td class="hint">{{ u.email || "-" }}</td>
+            <td><span class="badge" :class="u.status === 'active' ? 'ok' : 'neutral'">{{ u.status }}</span></td>
+            <td><button @click="startEditUser(u)">Modifica</button></td>
+          </tr>
+          <tr v-if="editUser[u.id]">
+            <td colspan="5">
+              <div class="grid grid-2">
+                <input v-model="editUser[u.id].full_name" placeholder="Nome completo" />
+                <input v-model="editUser[u.id].email" placeholder="Email" />
+                <select v-model="editUser[u.id].status">
+                  <option value="active">active</option>
+                  <option value="disabled">disabled</option>
+                </select>
+                <input v-model="editUser[u.id].password" type="password" placeholder="Nuova password (lascia vuoto per non cambiarla)" />
+              </div>
+              <button class="primary" style="margin-top: 6px" @click="saveUser(u.id)">Salva</button>
+              <button style="margin-top: 6px" @click="delete editUser[u.id]">Annulla</button>
+            </td>
+          </tr>
+        </template>
+        <tr v-if="users.length === 0"><td colspan="5" class="hint">Nessun utente.</td></tr>
       </tbody>
     </table>
     <details style="margin-top: 12px">
@@ -188,7 +304,19 @@ loadDaq();
       <div class="panel-head"><h3>Sedi</h3></div>
       <table>
         <tbody>
-          <tr v-for="s in sites" :key="s.id"><td>{{ s.name }}</td></tr>
+          <template v-for="s in sites" :key="s.id">
+            <tr>
+              <td>{{ s.name }}</td>
+              <td><button @click="startEditSite(s)">Modifica</button></td>
+            </tr>
+            <tr v-if="editSite[s.id]">
+              <td colspan="2">
+                <input v-model="editSite[s.id].name" style="width: 100%" />
+                <button class="primary" style="margin-top: 6px" @click="saveSite(s.id)">Salva</button>
+                <button style="margin-top: 6px" @click="delete editSite[s.id]">Annulla</button>
+              </td>
+            </tr>
+          </template>
           <tr v-if="sites.length === 0"><td class="hint">Nessuna sede.</td></tr>
         </tbody>
       </table>
@@ -203,12 +331,28 @@ loadDaq();
       <table>
         <thead><tr><th>Nome</th><th>Sede</th><th>PC</th><th></th></tr></thead>
         <tbody>
-          <tr v-for="s in stations" :key="s.id">
-            <td>{{ s.name }}</td>
-            <td class="hint">{{ siteName(s.site_id) }}</td>
-            <td class="mono">{{ s.computer_name || "-" }}</td>
-            <td><button class="danger" @click="removeStation(s.id)">Elimina</button></td>
-          </tr>
+          <template v-for="s in stations" :key="s.id">
+            <tr>
+              <td>{{ s.name }}</td>
+              <td class="hint">{{ siteName(s.site_id) }}</td>
+              <td class="mono">{{ s.computer_name || "-" }}</td>
+              <td>
+                <button @click="startEditStation(s)">Modifica</button>
+                <button class="danger" @click="removeStation(s.id)">Elimina</button>
+              </td>
+            </tr>
+            <tr v-if="editStation[s.id]">
+              <td colspan="4">
+                <div class="grid grid-3">
+                  <select v-model="editStation[s.id].site_id"><option v-for="site in sites" :key="site.id" :value="site.id">{{ site.name }}</option></select>
+                  <input v-model="editStation[s.id].name" placeholder="Nome stazione" />
+                  <input v-model="editStation[s.id].computer_name" placeholder="Nome PC (opz.)" />
+                </div>
+                <button class="primary" style="margin-top: 6px" @click="saveStation(s.id)">Salva</button>
+                <button style="margin-top: 6px" @click="delete editStation[s.id]">Annulla</button>
+              </td>
+            </tr>
+          </template>
           <tr v-if="stations.length === 0"><td colspan="4" class="hint">Nessuna stazione.</td></tr>
         </tbody>
       </table>
@@ -228,10 +372,32 @@ loadDaq();
     <div class="panel">
       <div class="panel-head"><h3>Profili dispositivo</h3></div>
       <table>
-        <thead><tr><th>Nome</th><th>Tipo</th></tr></thead>
+        <thead><tr><th>Nome</th><th>Tipo</th><th></th></tr></thead>
         <tbody>
-          <tr v-for="d in devices" :key="d.id"><td>{{ d.name }}</td><td class="hint">{{ d.connection_type }}</td></tr>
-          <tr v-if="devices.length === 0"><td colspan="2" class="hint">Nessun profilo.</td></tr>
+          <template v-for="d in devices" :key="d.id">
+            <tr>
+              <td>{{ d.name }}</td>
+              <td class="hint">{{ d.connection_type }}</td>
+              <td><button @click="startEditDevice(d)">Modifica</button></td>
+            </tr>
+            <tr v-if="editDevice[d.id]">
+              <td colspan="3">
+                <div class="grid grid-2">
+                  <input v-model="editDevice[d.id].name" placeholder="Nome" />
+                  <select v-model="editDevice[d.id].connection_type">
+                    <option value="rs232">RS232</option>
+                    <option value="usb_hid">USB-HID</option>
+                    <option value="manual">Manuale</option>
+                    <option value="opcua">OPC-UA</option>
+                    <option value="mtconnect">MTConnect</option>
+                  </select>
+                </div>
+                <button class="primary" style="margin-top: 6px" @click="saveDevice(d.id)">Salva</button>
+                <button style="margin-top: 6px" @click="delete editDevice[d.id]">Annulla</button>
+              </td>
+            </tr>
+          </template>
+          <tr v-if="devices.length === 0"><td colspan="3" class="hint">Nessun profilo.</td></tr>
         </tbody>
       </table>
       <details style="margin-top: 12px">
@@ -261,6 +427,7 @@ loadDaq();
               <td class="hint">{{ deviceName(s.device_id) }}</td>
               <td>
                 <button @click="testSource(s.id)">Prova</button>
+                <button @click="startEditSource(s)">Modifica</button>
                 <button class="danger" @click="removeSource(s.id)">Elimina</button>
               </td>
             </tr>
@@ -268,6 +435,19 @@ loadDaq();
               <td colspan="4">
                 <span class="badge" :class="testResults[s.id].ok ? 'ok' : 'danger'">{{ testResults[s.id].ok ? "OK" : "Fallito" }}</span>
                 <span class="hint" style="margin-left: 8px">{{ testResults[s.id].message }}</span>
+              </td>
+            </tr>
+            <tr v-if="editSource[s.id]">
+              <td colspan="4">
+                <div class="grid grid-3">
+                  <select v-model="editSource[s.id].station_id"><option v-for="st in stations" :key="st.id" :value="st.id">{{ st.name }}</option></select>
+                  <select v-model="editSource[s.id].device_id"><option v-for="d in devices" :key="d.id" :value="d.id">{{ d.name }}</option></select>
+                  <input v-model="editSource[s.id].name" placeholder="Nome sorgente" />
+                  <input v-model="editSource[s.id].port" placeholder="Porta" />
+                  <input v-model="editSource[s.id].channel_no" type="number" placeholder="Canale (opz.)" />
+                </div>
+                <button class="primary" style="margin-top: 6px" @click="saveSource(s.id)">Salva</button>
+                <button style="margin-top: 6px" @click="delete editSource[s.id]">Annulla</button>
               </td>
             </tr>
           </template>
