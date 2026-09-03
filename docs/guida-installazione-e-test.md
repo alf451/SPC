@@ -167,7 +167,29 @@ Un dispositivo (profilo) può avere **più sorgenti** — è esattamente il caso
 | `manual` | Nessun collegamento automatico — l'operatore inserisce il valore a mano dalla schermata "Raccolta Dati" | nessuno |
 | `opcua` / `mtconnect` | Predisposti per integrazioni future con macchine CNC/CMM che espongono questi standard industriali | da definire caso per caso |
 
-### 3.3 Creare un profilo dispositivo (esempio: Mitutoyo U-Wave)
+### 3.3 (facoltativo) Scoprire cosa è collegato a un PC prima di configurarlo
+
+Prima ancora di creare un profilo dispositivo o una sorgente, spesso serve sapere una cosa semplice: **"cosa c'è davvero collegato a quel PC?"** — soprattutto se non sei fisicamente lì. Due strumenti diversi, per due momenti diversi:
+
+**a) Non hai ancora installato nulla su quella stazione — vuoi solo vedere da remoto**
+
+[`edge-agent/tools/network-device-scanner.ps1`](../edge-agent/tools/network-device-scanner.ps1) — finestra PowerShell con interfaccia grafica (non una pagina web: un browser non può scansionare una rete). Si lancia da un **qualunque altro PC** della stessa rete:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File edge-agent\tools\network-device-scanner.ps1
+```
+
+1. Inserisci la sottorete (es. `192.168.1`, già precompilata da sola) → **"Scansiona rete"**
+2. Seleziona il PC della stazione dall'elenco (doppio click)
+3. Vedi subito l'elenco delle porte COM/dispositivi USB collegati a **quel PC**, senza doverci accedere via RDP
+
+Funziona via WMI (`Get-CimInstance -ComputerName`) — non richiede PowerShell Remoting abilitato, ma il firewall del PC remoto deve permettere "Windows Management Instrumentation (WMI)" in ingresso. Dettagli/limiti in [`edge-agent/tools/README.md`](../edge-agent/tools/README.md).
+
+**b) L'Edge Agent è già installato e avviato su quella stazione (vedi punto 3.6)**
+
+Da quel momento in poi non serve più lo scanner: il pannello **Amministrazione → Dispositivi → Nuova sorgente DAQ** ha un pulsante **"Rileva porte disponibili sulla stazione"** che mostra le porte viste in tempo reale dall'Edge Agent stesso — funziona da qualunque PC apra il frontend, non solo da quello della stazione (vedi punto 3.5 più sotto).
+
+### 3.4 Creare un profilo dispositivo (esempio: Mitutoyo U-Wave)
 
 Nel frontend: **Amministrazione → Dispositivi → Nuovo profilo dispositivo**
 (oppure in `admin/index.html`, stessa sezione)
@@ -177,21 +199,21 @@ Nel frontend: **Amministrazione → Dispositivi → Nuovo profilo dispositivo**
 
 Parametri di comunicazione U-Wave (dal manuale Mitutoyo): **57600 baud, 8 bit dati, nessuna parità, 1 bit di stop** — vedi [`test-mitutoyo-uwave.md`](test-mitutoyo-uwave.md) per i dettagli completi su questo dispositivo specifico.
 
-### 3.4 Creare una sorgente (porta+canale su una stazione)
+### 3.5 Creare una sorgente (porta+canale su una stazione)
 
 **Amministrazione → Dispositivi → Nuova sorgente DAQ**
 
 - Stazione: quella dove è fisicamente collegato il ricevitore
-- Dispositivo: il profilo creato al punto 3.3
+- Dispositivo: il profilo creato al punto 3.4
 - Nome: es. "Calibro reparto A"
-- Porta: la porta COM (**virtuale**, nel caso di U-Wave — creata dal software U-WAVEPAK, non esiste finché quel software non è installato e configurato su questo PC)
+- Porta: la porta COM (**virtuale**, nel caso di U-Wave — creata dal software U-WAVEPAK, non esiste finché quel software non è installato e configurato su questo PC) — usa il pulsante "Rileva porte disponibili sulla stazione" (vedi 3.3b) per scegliere invece di scriverla a mano, se l'Edge Agent è già attivo lì
 - Canale: il numero di canale assegnato al trasmettitore (via U-WAVEPAK), se il ricevitore è multi-canale
 
-### 3.5 Testare la connessione
+### 3.6 Testare la connessione
 
 Nella tabella delle sorgenti DAQ, pulsante **"Prova"** — chiede all'Edge Agent connesso a quella stazione lo stato reale della porta (connesso? ultima lettura quando?). Se l'Edge Agent non è ancora attivo su quella stazione, il test lo segnala chiaramente invece di dare un errore generico.
 
-### 3.6 Avviare l'Edge Agent sulla stazione
+### 3.7 Avviare l'Edge Agent sulla stazione
 
 Sul PC dove sono collegati fisicamente gli strumenti (vedi [`edge-agent/README.md`](../edge-agent/README.md) per i dettagli completi):
 
@@ -279,3 +301,13 @@ Il PC dove stai buildando è troppo vecchio per la versione di Node.js installat
 ### Il prompt di installazione per la porta dà un errore .NET invece di richiedere
 
 Versioni del progetto precedenti a questo fix potevano crashare se si rispondeva con del testo non numerico alla domanda sulla porta. Aggiornato — ora richiede semplicemente di nuovo. Se capita ancora, assicurati di avere l'ultima versione (`git pull`).
+
+### `network-device-scanner.ps1` non trova dispositivi su un PC che pure risponde al ping
+
+Il ping (ICMP) e il WMI (usato per leggere i dispositivi) sono due cose diverse — un firewall può bloccare l'uno e lasciare passare l'altro. Cause più probabili, nell'ordine in cui conviene controllarle:
+
+1. **Firewall del PC remoto**: deve avere l'eccezione in ingresso "Windows Management Instrumentation (WMI)" attiva (di solito sotto Windows Defender Firewall → Regole in entrata, gruppo "Strumentazione gestione Windows (WMI)").
+2. **Credenziali**: di default lo script usa l'utente della sessione corrente — se quell'utente non ha diritti su quel PC (es. non è nello stesso dominio/gruppo di lavoro, o non è amministratore locale lì), spunta la casella "Usa credenziali diverse" e fornisci un account che li abbia.
+3. **PC non raggiungibile via DCOM** anche se risponde al ping — capita su reti con segmentazione/VLAN che permette ICMP ma blocca altre porte.
+
+Il log nella finestra dello script riporta quale di questi è più probabile in base all'errore esatto ricevuto.
