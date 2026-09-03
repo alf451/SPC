@@ -336,8 +336,21 @@ if ($envAlreadyConfigured -and -not $paramsGivenExplicitly) {
     $interactive = [Environment]::UserInteractive -and -not $paramsGivenExplicitly
 
     if ($interactive) {
-        $answer = Read-Host "Porta del backend [invio per $BackendPortDefault]"
-        $backendPort = if ($answer) { [int]$answer } else { $BackendPortDefault }
+        # Un input non numerico (es. risposto per sbaglio al prompt sbagliato,
+        # come una password) non deve far crashare l'intero installer con un
+        # errore .NET criptico - si ri-chiede finche' non arriva o un numero
+        # valido o l'invio a vuoto (default). Riscontrato dal vivo.
+        $backendPort = $BackendPortDefault
+        while ($true) {
+            $answer = Read-Host "Porta del backend [invio per $BackendPortDefault]"
+            if (-not $answer) { break }
+            $parsedPort = 0
+            if ([int]::TryParse($answer, [ref]$parsedPort) -and $parsedPort -gt 0 -and $parsedPort -le 65535) {
+                $backendPort = $parsedPort
+                break
+            }
+            Write-Host "   '$answer' non e' un numero di porta valido (1-65535) - riprova, oppure premi invio per usare $BackendPortDefault." -ForegroundColor Yellow
+        }
     } else {
         $backendPort = if ($Port -ne 0) { $Port } else { $BackendPortDefault }
     }
