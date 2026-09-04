@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
@@ -10,6 +11,8 @@ import serial
 
 from edge_agent.models import Reading
 from edge_agent.sources.base import Source
+
+logger = logging.getLogger(__name__)
 
 _PARITY_MAP = {"N": serial.PARITY_NONE, "E": serial.PARITY_EVEN, "O": serial.PARITY_ODD}
 
@@ -84,6 +87,15 @@ class DigimaticRS232Source(Source):
 
     async def read(self) -> AsyncIterator[Reading]:
         self._serial = await asyncio.to_thread(self._open)
+        logger.info(
+            "Porta %s aperta (%d baud, %d%s%d, modo=%s) - in ascolto",
+            self.port,
+            self._baud_rate,
+            self._data_bits,
+            self._serial.parity,
+            self._stop_bits,
+            self._mode,
+        )
         try:
             while True:
                 if self._mode == "polled":
@@ -93,10 +105,12 @@ class DigimaticRS232Source(Source):
 
                 line = await asyncio.to_thread(self._serial.read_until, self._terminator)
                 if not line:
+                    logger.debug("Porta %s: nessun dato entro il timeout, riprovo", self.port)
                     continue  # timeout senza dati, riprova (rilevante soprattutto in modalità polled)
 
                 raw_text = line.decode(errors="replace").strip()
                 value = parse_digimatic_frame(raw_text)
+                logger.info("Porta %s: ricevuto %r -> valore=%s", self.port, raw_text, value)
                 yield Reading(
                     port=self.port,
                     channel_no=self.channel_no,

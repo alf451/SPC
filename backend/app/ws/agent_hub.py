@@ -32,7 +32,7 @@ async def _active_run(station_id: int) -> Run | None:
     async with SessionLocal() as session:
         result = await session.execute(
             select(Run)
-            .where(Run.station_id == station_id, Run.status == "active")
+            .where(Run.station_id == station_id, Run.status == "in_progress")
             .order_by(Run.started_at.desc())
             .limit(1)
         )
