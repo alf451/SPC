@@ -3,17 +3,21 @@ import { reactive, ref, watch } from "vue";
 import { partsApi } from "../api/parts";
 import { routinesApi } from "../api/routines";
 import { featuresApi } from "../api/features";
+import { daqSourcesApi, featureDaqBindingsApi } from "../api/daq";
 
 const parts = ref([]);
 const routines = ref([]);
 const selectedPartId = ref(null);
 const features = ref([]);
+const daqSources = ref([]);
 const error = ref("");
+const bindOk = ref(""); // messaggio di conferma transitorio dopo un collegamento riuscito
 
 const newPart = reactive({ name: "", description: "" });
 const newRoutine = reactive({ name: "" });
 const newFeature = reactive({ name: "", feature_type: "variable", target: "", lower_tolerance_limit: "", upper_tolerance_limit: "" });
 const bindForm = reactive({ routine_id: "", feature_id: "", order_no: 0 });
+const daqBindForm = reactive({ routine_id: "", feature_id: "", daq_source_id: "" });
 const editVersion = reactive({}); // { [featureId]: { target, lower_tolerance_limit, upper_tolerance_limit } }
 
 async function loadParts() {
@@ -21,6 +25,9 @@ async function loadParts() {
 }
 async function loadRoutines() {
   routines.value = await routinesApi.list();
+}
+async function loadDaqSources() {
+  daqSources.value = await daqSourcesApi.list();
 }
 
 async function createPart() {
@@ -112,21 +119,45 @@ async function saveNewVersion(feature) {
 async function bindFeature() {
   if (!bindForm.routine_id || !bindForm.feature_id) return;
   error.value = "";
+  bindOk.value = "";
   try {
     await routinesApi.setFeatureBinding(Number(bindForm.routine_id), Number(bindForm.feature_id), {
       order_no: Number(bindForm.order_no) || 0,
     });
+    bindOk.value = "Feature aggiunta alla Routine.";
   } catch (e) {
     error.value = e.message || "Impossibile collegare la Feature alla Routine.";
   }
 }
 
+function daqSourceLabel(s) {
+  return `${s.name} (${s.port || "?"}${s.channel_no != null ? " / ch" + s.channel_no : ""})`;
+}
+
+async function bindFeatureDaq() {
+  if (!daqBindForm.routine_id || !daqBindForm.feature_id || !daqBindForm.daq_source_id) return;
+  error.value = "";
+  bindOk.value = "";
+  try {
+    await featureDaqBindingsApi.set({
+      routine_id: Number(daqBindForm.routine_id),
+      feature_id: Number(daqBindForm.feature_id),
+      daq_source_id: Number(daqBindForm.daq_source_id),
+    });
+    bindOk.value = "Sorgente DAQ collegata: le misure in arrivo da quella porta verranno assegnate a questa Feature per questa Routine.";
+  } catch (e) {
+    error.value = e.message || "Impossibile collegare la sorgente DAQ alla Feature.";
+  }
+}
+
 loadParts();
 loadRoutines();
+loadDaqSources();
 </script>
 
 <template>
   <div v-if="error" class="error-box">{{ error }}</div>
+  <div v-if="bindOk" class="badge ok" style="display: block; padding: 8px 12px; margin-bottom: 12px; width: fit-content">{{ bindOk }}</div>
 
   <div class="config-grid grid grid-2">
     <div class="panel">
@@ -159,13 +190,23 @@ loadRoutines();
         <button class="primary" :disabled="!newRoutine.name" @click="createRoutine">Crea</button>
       </details>
 
-      <div class="panel-head" style="margin-top: 18px"><h3>Collega Feature &rarr; Routine</h3></div>
+      <div class="panel-head" style="margin-top: 18px"><h3>Aggiungi Feature alla Routine</h3></div>
+      <p class="hint" style="margin: -6px 0 8px">Solo l'ordine di collaudo delle Feature in questa Routine — non collega ancora nessuno strumento (per quello vedi sotto).</p>
       <div class="grid grid-3">
         <select v-model="bindForm.routine_id"><option value="">Routine</option><option v-for="r in routines" :key="r.id" :value="r.id">{{ r.name }}</option></select>
         <select v-model="bindForm.feature_id"><option value="">Feature</option><option v-for="f in features" :key="f.id" :value="f.id">{{ f.name }}</option></select>
         <input v-model="bindForm.order_no" type="number" placeholder="Ordine" />
       </div>
-      <button class="primary" style="margin-top: 8px" @click="bindFeature">Collega</button>
+      <button class="primary" style="margin-top: 8px" @click="bindFeature">Aggiungi</button>
+
+      <div class="panel-head" style="margin-top: 18px"><h3>Collega Feature &rarr; Sorgente DAQ</h3></div>
+      <p class="hint" style="margin: -6px 0 8px">Questo e' il collegamento che serve perche' le misure di uno strumento arrivino alla Feature giusta durante un Run. Senza questo, l'Edge Agent invia le letture ma il backend non sa a quale Feature assegnarle.</p>
+      <div class="grid grid-3">
+        <select v-model="daqBindForm.routine_id"><option value="">Routine</option><option v-for="r in routines" :key="r.id" :value="r.id">{{ r.name }}</option></select>
+        <select v-model="daqBindForm.feature_id"><option value="">Feature</option><option v-for="f in features" :key="f.id" :value="f.id">{{ f.name }}</option></select>
+        <select v-model="daqBindForm.daq_source_id"><option value="">Sorgente DAQ</option><option v-for="s in daqSources" :key="s.id" :value="s.id">{{ daqSourceLabel(s) }}</option></select>
+      </div>
+      <button class="primary" style="margin-top: 8px" :disabled="!daqBindForm.routine_id || !daqBindForm.feature_id || !daqBindForm.daq_source_id" @click="bindFeatureDaq">Collega</button>
     </div>
 
     <div class="panel">

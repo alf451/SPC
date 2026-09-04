@@ -1,1 +1,0 @@
-import{n as e}from"./index-DBJjpsyf.js";var t={listFolders:()=>e.get(`/api/routine-folders`),list:t=>e.get(`/api/routines`,t),get:t=>e.get(`/api/routines/${t}`),create:t=>e.post(`/api/routines`,t),features:t=>e.get(`/api/routines/${t}/features`),setFeatureBinding:(t,n,r)=>e.put(`/api/routines/${t}/features/${n}`,r)};export{t};

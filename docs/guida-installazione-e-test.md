@@ -234,12 +234,13 @@ Il token si ottiene facendo login via API con un utente dedicato — istruzioni 
 ## Parte 4 — Testare l'applicazione end-to-end
 
 1. **Amministrazione → Stazioni**: crea almeno una sede e una stazione (se non già fatto)
-2. **Routine & Quote**: crea un Part (es. "Pezzo di prova"), poi una Feature con una tolleranza (es. target 10, limite inf. 9.9, limite sup. 10.1), poi una Routine, e collega la Feature alla Routine
-3. **Raccolta Dati**: avvia un nuovo Run scegliendo la Routine e la stazione create
-4. **Inserisci una misura**:
+2. **Routine & Quote**: crea un Part (es. "Pezzo di prova"), poi una Feature con una tolleranza (es. target 10, limite inf. 9.9, limite sup. 10.1), poi una Routine, e usa "Aggiungi Feature alla Routine" per collegarla (questo definisce solo l'ordine di collaudo — se userai uno strumento reale serve **anche** il passo 3 qui sotto)
+3. **Se userai l'Edge Agent con uno strumento reale** (non necessario per il solo inserimento manuale): nello stesso pannello Routine & Quote, sezione **"Collega Feature → Sorgente DAQ"** — scegli Routine, Feature e la sorgente DAQ creata in Amministrazione (es. quella collegata all'U-Wave). **Senza questo passaggio le letture arrivano dall'Edge Agent ma il backend non sa a quale Feature assegnarle** (causa più comune di "l'Edge Agent è connesso, la Prova funziona, ma non vedo misure in Raccolta Dati")
+4. **Raccolta Dati**: avvia un nuovo Run scegliendo la Routine e la stazione create
+5. **Inserisci una misura**:
    - Se hai l'Edge Agent collegato a uno strumento reale: premi il tasto dati sullo strumento, la misura deve comparire in tempo reale nella tabella "Osservazioni recenti"
    - Altrimenti: usa il form "Inserimento manuale" nella stessa schermata — stesso risultato, comparsa immediata via WebSocket
-5. Se il valore è fuori dalle tolleranze impostate al punto 2, la riga compare evidenziata in rosso — è il segnale che il controllo di conformità funziona
+6. Se il valore è fuori dalle tolleranze impostate al punto 2, la riga compare evidenziata in rosso — è il segnale che il controllo di conformità funziona
 
 Se tutti questi passaggi funzionano, l'installazione è verificata end-to-end.
 
