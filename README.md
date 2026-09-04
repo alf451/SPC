@@ -6,6 +6,7 @@ App web (FastAPI + PostgreSQL + frontend Vue) per SPC e raccolta dati in officin
 
 - [`docs/guida-installazione-e-test.md`](docs/guida-installazione-e-test.md) — **guida unica passo-passo**: installazione Windows (pilota) e Ubuntu (permanente), frontend, configurazione strumenti, test end-to-end, troubleshooting — punto di partenza consigliato
 - [`docs/problemi-riscontrati.md`](docs/problemi-riscontrati.md) — diagnosi dettagliata dei problemi reali incontrati durante il collaudo dal vivo (cause, non solo soluzioni)
+- [`docs/sincronizzare-le-modifiche.md`](docs/sincronizzare-le-modifiche.md) — promemoria comandi `git push`/`git pull` per pubblicare e aggiornare
 - [`docs/test-mitutoyo-uwave.md`](docs/test-mitutoyo-uwave.md) — collaudo specifico del sistema Mitutoyo U-Wave (wireless)
 - [`CHANGELOG.md`](CHANGELOG.md) — versioni rilasciate (visibile anche in Amministrazione → Info nel frontend)
 - [`docs/measurlink-analysis.md`](docs/measurlink-analysis.md) — analisi dello schema originale MeasurLink9 (SQL Server), base del redesign
