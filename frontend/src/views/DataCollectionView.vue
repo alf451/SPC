@@ -23,7 +23,7 @@ let socket = null;
 
 async function loadOptions() {
   const [runList, routineList, stationList] = await Promise.all([
-    runsApi.list({ status_filter: "in_progress" }),
+    runsApi.list({ status_filter: "active" }),
     routinesApi.list(),
     stationsApi.list(),
   ]);

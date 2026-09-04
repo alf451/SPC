@@ -14,7 +14,7 @@ async function load() {
   try {
     const [stationList, runList] = await Promise.all([
       stationsApi.list(),
-      runsApi.list({ status_filter: "in_progress" }),
+      runsApi.list({ status_filter: "active" }),
     ]);
     stations.value = stationList;
     activeRuns.value = runList;
