@@ -3,6 +3,7 @@ import { reactive, ref } from "vue";
 import { usersApi } from "../api/users";
 import { sitesApi, stationsApi } from "../api/stations";
 import { daqDevicesApi, daqSourcesApi } from "../api/daq";
+import { systemApi } from "../api/system";
 
 // Questa vista copre lo stesso ambito di admin/index.html (rimasto invariato,
 // gia' collaudato) ma integrato nel frontend Vue principale, cosi' chi lavora
@@ -288,9 +289,54 @@ function deviceName(id) {
   return devices.value.find((d) => d.id === id)?.name || `#${id}`;
 }
 
+// --- Info (versione e changelog) ---
+const appVersion = ref("");
+const changelogHtml = ref("");
+async function loadInfo() {
+  const [v, c] = await Promise.all([systemApi.version(), systemApi.changelog()]);
+  appVersion.value = v.version;
+  changelogHtml.value = markdownToHtml(c.markdown);
+}
+// Rendering minimale, senza dipendenze esterne: il changelog e' un file
+// controllato da noi (non input utente), non serve un parser markdown vero.
+function markdownToHtml(md) {
+  const lines = (md || "").split("\n");
+  let html = "";
+  let inList = false;
+  const closeList = () => {
+    if (inList) {
+      html += "</ul>";
+      inList = false;
+    }
+  };
+  for (const line of lines) {
+    if (line.startsWith("## ")) {
+      closeList();
+      html += `<h4 style="margin:18px 0 6px">${line.slice(3)}</h4>`;
+    } else if (line.startsWith("# ")) {
+      closeList();
+      html += `<h3 style="margin:0 0 8px">${line.slice(2)}</h3>`;
+    } else if (line.startsWith("- ")) {
+      if (!inList) {
+        html += "<ul style=\"margin:0 0 8px;padding-left:20px\">";
+        inList = true;
+      }
+      html += `<li style="margin-bottom:4px">${line.slice(2)}</li>`;
+    } else if (line.trim() === "") {
+      closeList();
+    } else {
+      closeList();
+      html += `<p class="hint" style="margin:0 0 8px">${line}</p>`;
+    }
+  }
+  closeList();
+  return html;
+}
+
 loadUsers();
 loadSitesAndStations();
 loadDaq();
+loadInfo();
 </script>
 
 <template>
@@ -300,6 +346,7 @@ loadDaq();
     <button :class="{ primary: tab === 'users' }" @click="tab = 'users'">Utenti</button>
     <button :class="{ primary: tab === 'stations' }" @click="tab = 'stations'">Stazioni</button>
     <button :class="{ primary: tab === 'devices' }" @click="tab = 'devices'">Dispositivi</button>
+    <button :class="{ primary: tab === 'info' }" @click="tab = 'info'">Info</button>
   </div>
 
   <div v-if="tab === 'users'" class="panel">
@@ -648,5 +695,13 @@ loadDaq();
         <button class="primary" style="margin-top: 8px" :disabled="!newSource.station_id || !newSource.device_id || !newSource.name" @click="createSource">Crea</button>
       </details>
     </div>
+  </div>
+
+  <div v-if="tab === 'info'" class="panel">
+    <div class="panel-head">
+      <h3>leank SPC</h3>
+      <span class="badge ok">v{{ appVersion }}</span>
+    </div>
+    <div v-html="changelogHtml"></div>
   </div>
 </template>

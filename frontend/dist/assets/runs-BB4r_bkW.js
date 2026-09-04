@@ -1,1 +1,0 @@
-import{n as e}from"./index-DRbVxn68.js";var t={list:t=>e.get(`/api/runs`,t),get:t=>e.get(`/api/runs/${t}`),create:t=>e.post(`/api/runs`,t),complete:t=>e.post(`/api/runs/${t}/complete`)};export{t};

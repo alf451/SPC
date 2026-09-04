@@ -2,13 +2,17 @@ import re
 from pathlib import Path
 
 from fastapi import FastAPI, Request, status
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import IntegrityError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
 
 from app.config import settings
 from app.reference_check import ReferencedElsewhereError
+from app.version import APP_VERSION
 from app.routers import (
     admin_import,
     auth,
@@ -71,6 +75,28 @@ async def _integrity_error_handler(request: Request, exc: IntegrityError) -> JSO
     )
 
 
+_STATIC_ROUTE_PREFIXES = ("/api", "/ws", "/docs", "/redoc", "/openapi.json", "/health")
+
+
+def _make_spa_fallback_handler(frontend_dist: Path):
+    """StaticFiles(html=True) serve index.html solo per un path che e' una
+    directory reale - per una rotta di vue-router come /amministrazione (che
+    non esiste come file ne' come cartella in frontend/dist) restituisce un
+    404 vero invece del fallback, mandando in errore il refresh della pagina.
+    Questo handler intercetta quei 404 e serve comunque index.html, lasciando
+    intatti i 404 "veri" delle API (es. GET /api/runs/999)."""
+
+    async def handler(request: Request, exc: StarletteHTTPException) -> Response:
+        path = request.url.path
+        if exc.status_code == 404 and not path.startswith(_STATIC_ROUTE_PREFIXES):
+            index_file = frontend_dist / "index.html"
+            if index_file.is_file():
+                return FileResponse(index_file)
+        return await http_exception_handler(request, exc)
+
+    return handler
+
+
 async def _referenced_elsewhere_handler(request: Request, exc: ReferencedElsewhereError) -> JSONResponse:
     """Controllo PROATTIVO (vedi app/reference_check.py): a differenza di
     _integrity_error_handler sopra, che reagisce al primo vincolo che
@@ -84,7 +110,7 @@ async def _referenced_elsewhere_handler(request: Request, exc: ReferencedElsewhe
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="leank-spc API", version="0.1.0")
+    app = FastAPI(title="leank-spc API", version=APP_VERSION)
 
     app.add_middleware(
         CORSMiddleware,
@@ -122,13 +148,26 @@ def create_app() -> FastAPI:
     async def health() -> dict:
         return {"status": "ok"}
 
+    @app.get("/api/version")
+    async def version() -> dict:
+        return {"version": APP_VERSION}
+
+    @app.get("/api/changelog")
+    async def changelog() -> dict:
+        changelog_path = Path(__file__).resolve().parents[2] / "CHANGELOG.md"
+        text = changelog_path.read_text(encoding="utf-8") if changelog_path.is_file() else ""
+        return {"markdown": text}
+
     # Frontend Vue (frontend/dist/, prodotto da "npm run build") - montato per
     # ultimo e solo se presente, cosi' chi non lo ha ancora buildato continua
     # ad avere un backend funzionante (API/Swagger/pannello admin invariati).
-    # "html=True" serve le pagine di vue-router (createWebHistory) risolvendo
-    # ogni percorso non trovato su index.html invece di un 404 statico.
+    # "html=True" serve /assets/* e index.html sulla root; il fallback per le
+    # altre rotte di vue-router (es. /amministrazione) e' nell'exception
+    # handler sotto, perche' StaticFiles(html=True) da solo NON lo copre
+    # (serve index.html solo per path che sono directory reali).
     frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if frontend_dist.is_dir():
+        app.add_exception_handler(StarletteHTTPException, _make_spa_fallback_handler(frontend_dist))
         app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 
     return app
