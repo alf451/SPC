@@ -100,7 +100,7 @@ function Invoke-DownloadFile {
     # stesso nome, lo si riusa cosi' com'e' senza toccare la rete. Utile su
     # macchine datate/isolate dove il download diretto non funziona (limiti
     # TLS/cifrari di .NET Framework, o firewall aziendale) - vedi
-    # "Installazione offline" in docs/installazione.md per i nomi file esatti.
+    # "Installazione offline" in docs/guida-installazione-e-test.md per i nomi file esatti.
     $vendorFile = Join-Path (Join-Path $ProjectRoot "vendor") (Split-Path -Leaf $Destination)
     if (Test-Path $vendorFile) {
         Copy-Item $vendorFile $Destination

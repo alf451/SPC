@@ -1,6 +1,6 @@
 # Edge Agent — guida rapida
 
-Legge le misure da uno o più strumenti Digimatic (RS232 o USB-ITN) collegati al PC e le invia al backend leank-spc via WebSocket. Vedi [`../docs/api.md`](../docs/api.md) per il protocollo completo e [`../docs/installazione.md`](../docs/installazione.md) per l'installazione del backend.
+Legge le misure da uno o più strumenti Digimatic (RS232 o USB-ITN) collegati al PC e le invia al backend leank-spc via WebSocket. Vedi [`../docs/api.md`](../docs/api.md) per il protocollo completo e [`../docs/guida-installazione-e-test.md`](../docs/guida-installazione-e-test.md) per l'installazione del backend.
 
 ## Setup (PC con backend già installato in modalità pilot)
 
@@ -13,7 +13,7 @@ copy config.example.yaml config.yaml
 notepad config.yaml   # impostare station_id, port(e) COM, ecc.
 ```
 
-Se invece l'Edge Agent gira su un **PC diverso** dalla stazione dove c'è il backend (altra postazione della stessa officina), serve un Python 3.11+ locale a quel PC (embeddable o installato normalmente) e la rete deve raggiungere il backend — vedi il limite "solo localhost" in `docs/installazione.md`, da superare prima di questo scenario.
+Se invece l'Edge Agent gira su un **PC diverso** dalla stazione dove c'è il backend (altra postazione della stessa officina), serve un Python 3.11+ locale a quel PC (embeddable o installato normalmente) e la rete deve raggiungere il backend — vedi [le tre modalità di rete](../docs/guida-installazione-e-test.md#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi), da superare prima di questo scenario.
 
 ## Ottenere il token per config.yaml
 

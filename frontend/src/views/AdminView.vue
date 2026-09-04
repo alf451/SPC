@@ -9,7 +9,7 @@ import { systemApi } from "../api/system";
 // gia' collaudato) ma integrato nel frontend Vue principale, cosi' chi lavora
 // gia' dentro l'app non deve aprire una pagina separata per configurare
 // utenti/stazioni/dispositivi. admin/index.html resta disponibile come
-// alternativa standalone (vedi docs/installazione.md).
+// alternativa standalone (vedi docs/guida-installazione-e-test.md).
 const tab = ref("users");
 const error = ref("");
 

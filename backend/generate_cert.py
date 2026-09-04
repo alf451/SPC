@@ -4,7 +4,7 @@ nessuna Certification Authority pubblica lo ha firmato: la connessione resta
 comunque cifrata, il che basta per una rete interna fidata).
 
 Per esposizione pubblica serve un certificato firmato da una CA reale (es.
-Let's Encrypt) — vedi docs/installazione.md, sezione HTTPS pubblico.
+Let's Encrypt) — vedi docs/guida-installazione-e-test.md, sezione HTTPS pubblico.
 
 Uso: python generate_cert.py <cert.pem> <key.pem> <hostname> [ip...]
 """

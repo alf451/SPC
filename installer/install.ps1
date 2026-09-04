@@ -26,7 +26,8 @@
   -SslKeyFile genera da solo un certificato auto-firmato (va bene per una
   LAN fidata - il browser mostrera' un avviso "non attendibile" ma il
   traffico e' comunque cifrato; per un dominio pubblico serve invece un
-  certificato vero, vedi docs/installazione.md).
+  certificato vero, vedi docs/guida-installazione-e-test.md, sezione HTTPS
+  con certificato pubblico).
 
 .PARAMETER SslCertFile
   Percorso a un certificato .pem/.crt gia' pronto (richiede anche -SslKeyFile).

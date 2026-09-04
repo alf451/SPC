@@ -4,9 +4,10 @@ App web (FastAPI + PostgreSQL + frontend Vue) per SPC e raccolta dati in officin
 
 ## Documentazione
 
-- [`docs/guida-installazione-e-test.md`](docs/guida-installazione-e-test.md) — **guida unica passo-passo** (backend, frontend, configurazione strumenti, test end-to-end, troubleshooting dei problemi reali già incontrati) — punto di partenza consigliato
+- [`docs/guida-installazione-e-test.md`](docs/guida-installazione-e-test.md) — **guida unica passo-passo**: installazione Windows (pilota) e Ubuntu (permanente), frontend, configurazione strumenti, test end-to-end, troubleshooting — punto di partenza consigliato
+- [`docs/problemi-riscontrati.md`](docs/problemi-riscontrati.md) — diagnosi dettagliata dei problemi reali incontrati durante il collaudo dal vivo (cause, non solo soluzioni)
 - [`docs/test-mitutoyo-uwave.md`](docs/test-mitutoyo-uwave.md) — collaudo specifico del sistema Mitutoyo U-Wave (wireless)
-- [`docs/installazione.md`](docs/installazione.md) — installazione **Windows (pilot)** e **Ubuntu (permanente)** in dettaglio, più [come usare il frontend](docs/installazione.md#usare-il-frontend-web)
+- [`CHANGELOG.md`](CHANGELOG.md) — versioni rilasciate (visibile anche in Amministrazione → Info nel frontend)
 - [`docs/measurlink-analysis.md`](docs/measurlink-analysis.md) — analisi dello schema originale MeasurLink9 (SQL Server), base del redesign
 - [`docs/schema.sql`](docs/schema.sql) — DDL PostgreSQL completo, commentato con il confronto rispetto all'originale
 - [`docs/api.md`](docs/api.md) — elenco endpoint REST e protocollo messaggi WebSocket
@@ -38,7 +39,7 @@ installer\stop.cmd      # per fermare tutto
 installer\uninstall.cmd # per rimuovere tutto senza lasciare traccia
 ```
 
-L'installer chiede anche che PostgreSQL usare: **portable** (default, nessun privilegio di amministratore, nessun servizio Windows, tutto vive in `runtime\` cancellabile in ogni momento) oppure **completo** (servizio Windows vero — riusa un'installazione già presente sulla macchina, o ne installa una nuova con l'installer ufficiale EDB, richiede admin solo in quel caso). Vedi [PostgreSQL: portable o completo](docs/installazione.md#postgresql-portable-o-completo). Chiede poi porta, raggiungibilità in rete e HTTPS — vedi [le tre modalità di rete](docs/installazione.md#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi) in `docs/installazione.md`.
+L'installer chiede anche che PostgreSQL usare: **portable** (default, nessun privilegio di amministratore, nessun servizio Windows, tutto vive in `runtime\` cancellabile in ogni momento) oppure **completo** (servizio Windows vero — riusa un'installazione già presente sulla macchina, o ne installa una nuova con l'installer ufficiale EDB, richiede admin solo in quel caso). Vedi [PostgreSQL: portable o completo](docs/guida-installazione-e-test.md#postgresql-portable-o-completo). Chiede poi porta, raggiungibilità in rete e HTTPS — vedi [le tre modalità di rete](docs/guida-installazione-e-test.md#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi).
 
 ## Avvio rapido — Ubuntu/Debian, deployment permanente
 
@@ -47,11 +48,11 @@ L'installer chiede anche che PostgreSQL usare: **portable** (default, nessun pri
 ./installer/start.sh
 ```
 
-Usa i pacchetti di sistema (`apt`, PostgreSQL via systemd) — niente trucco "zero admin", qui è normale. Avvio automatico al boot opzionale via `installer/leank-spc.service`. Dettagli in [`docs/installazione.md`](docs/installazione.md).
+Usa i pacchetti di sistema (`apt`, PostgreSQL via systemd) — niente trucco "zero admin", qui è normale. Avvio automatico al boot opzionale via `installer/leank-spc.service`. Dettagli in [`docs/guida-installazione-e-test.md`](docs/guida-installazione-e-test.md#parte-1bis--installazione-ubuntudebian-deployment-permanente).
 
 ## Frontend web (uso quotidiano)
 
-Dopo l'installazione, l'indirizzo mostrato in fondo apre il frontend Vue: Cruscotto, Raccolta Dati (la schermata operativa per il collaudo, con misure live via WebSocket), Routine & Quote, Strumenti, Amministrazione (utenti/stazioni/dispositivi). Vedi [uso del frontend](docs/installazione.md#usare-il-frontend-web) in `docs/installazione.md` e [`frontend/README.md`](frontend/README.md) per sviluppo/build.
+Dopo l'installazione, l'indirizzo mostrato in fondo apre il frontend Vue: Cruscotto, Raccolta Dati (la schermata operativa per il collaudo, con misure live via WebSocket), Routine & Quote, Strumenti, Amministrazione (utenti/stazioni/dispositivi, più versione e changelog in "Info"). Vedi [Parte 2 della guida](docs/guida-installazione-e-test.md#parte-2--frontend-linterfaccia-web-vera-e-propria) e [`frontend/README.md`](frontend/README.md) per sviluppo/build.
 
 ## Configurare stazioni/DAQ e importare da MeasurLink
 
