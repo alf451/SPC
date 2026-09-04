@@ -45,6 +45,15 @@ class StationOut(BaseModel):
     status: str
 
 
+class StationResolve(BaseModel):
+    # Usato dall'Edge Agent per auto-configurarsi (vedi
+    # edge_agent/station_resolve.py): sede+nome al posto di un ID numerico
+    # da cercare/copiare a mano, causa nota di errori di configurazione.
+    site_name: str
+    name: str
+    computer_name: str | None = None
+
+
 class DaqDeviceCreate(BaseModel):
     name: str
     description: str | None = None

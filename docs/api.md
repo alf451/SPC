@@ -23,6 +23,7 @@ Tutte le altre route REST richiedono il bearer token. Autorizzazione granulare p
 | Runs | `GET/POST /api/runs`, `GET /api/runs/{id}`, `POST /api/runs/{id}/complete` | |
 | Measurements | `GET/POST /api/runs/{run_id}/measurements` | POST è per inserimento **manuale**; le misure da strumento arrivano via WS (vedi sotto) |
 | Stations | `GET/POST /api/stations`, `GET /api/stations/{id}`, `PUT /api/stations/{id}`, `DELETE /api/stations/{id}` | |
+| **v0.5 — Auto-config stazione** | `POST /api/stations/resolve` | get-or-create di sede+stazione per nome (`site_name`, `name`, `computer_name` opzionale) - usato dall'Edge Agent per auto-configurarsi senza un `station_id` numerico da cercare a mano, vedi `edge-agent/README.md` |
 | DAQ devices | `GET/POST /api/daq-devices`, `PUT /api/daq-devices/{id}`, `DELETE /api/daq-devices/{id}` | profilo dispositivo (RS232/USB-HID/...), parametri in `config` jsonb |
 | DAQ sources | `GET/POST /api/daq-sources`, `PUT /api/daq-sources/{id}`, `DELETE /api/daq-sources/{id}` | porta/canale fisico su una stazione |
 | Feature↔DAQ binding | `PUT /api/feature-daq-bindings`, `DELETE /api/feature-daq-bindings` | quale sorgente alimenta quale Feature per una Routine |

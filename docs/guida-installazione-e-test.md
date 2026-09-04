@@ -256,13 +256,13 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 copy config.example.yaml config.yaml
-# modificare config.yaml: station_id, url del backend, token, elenco sorgenti
+# modificare config.yaml: sede/nome stazione (o station_id), url del backend, token, elenco sorgenti
 python -m edge_agent.main config.yaml
 ```
 
 Il token si ottiene facendo login via API con un utente dedicato — istruzioni dettagliate in `edge-agent/README.md`.
 
-> ⚠️ **`station_id` sbagliato = nessun errore visibile, ma niente funziona**: se il numero non corrisponde davvero alla stazione che stai usando nel frontend, l'Edge Agent si connette regolarmente e i test dalla UI possono anche funzionare, ma il Run attivo e le sorgenti DAQ non vengono mai risolti (log `Config ricevuta: run attivo=None, sorgenti risolte=0`). Verifica l'id esatto da Swagger (`GET /api/stations`) se hai un dubbio — vedi [`problemi-riscontrati.md`](problemi-riscontrati.md).
+> ✅ **Dalla v0.5, la stazione si indica per nome, non più per ID numerico**: nel `config.yaml` basta `station: {site_name: "...", name: "..."}` con **esattamente** i nomi che compaiono in Amministrazione → Stazioni — l'agent la risolve/crea da solo al primo avvio (`POST /api/stations/resolve`). In precedenza serviva uno `station_id` numerico da cercare a mano, ed era una causa reale di configurazioni sbagliate: l'Edge Agent si connetteva regolarmente e i test dalla UI potevano anche funzionare, ma il Run attivo e le sorgenti DAQ non venivano mai risolti (log `Config ricevuta: run attivo=None, sorgenti risolte=0`) — vedi [`problemi-riscontrati.md`](problemi-riscontrati.md). `station_id` resta comunque disponibile per chi lo preferisce o ha già una configurazione esistente.
 
 ---
 

@@ -1,0 +1,1 @@
+import{r as e}from"./index-CL8v5gDw.js";var t={list:t=>e.get(`/api/runs`,t),get:t=>e.get(`/api/runs/${t}`),create:t=>e.post(`/api/runs`,t),complete:t=>e.post(`/api/runs/${t}/complete`)};export{t};

@@ -538,4 +538,21 @@ CREATE INDEX ix_runs_work_order ON runs(work_order_id);
 CREATE INDEX ix_runs_tool ON runs(tool_id);
 CREATE INDEX ix_tool_positions_tool ON tool_positions(tool_id);
 
+-- notifiche email (migration 0003) — riga singola (id sempre 1), gestita da
+-- app/notifications/mailer.py; smtp_password mai restituito dall'API, solo
+-- se e' impostato o meno (smtp_password_set)
+CREATE TABLE notification_settings (
+    id                              smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    smtp_host                       text,
+    smtp_port                       integer NOT NULL DEFAULT 587,
+    smtp_username                   text,
+    smtp_password                   text,
+    smtp_use_tls                    boolean NOT NULL DEFAULT true,
+    from_email                      text,
+    to_email                        text NOT NULL DEFAULT 'mcdataviewerinfo@gmail.com',
+    notify_on_agent_disconnected    boolean NOT NULL DEFAULT true,
+    notify_on_system_error          boolean NOT NULL DEFAULT true,
+    updated_at                      timestamptz NOT NULL DEFAULT now()
+);
+
 COMMIT;

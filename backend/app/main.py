@@ -1,4 +1,6 @@
+import logging
 import re
+import traceback
 from pathlib import Path
 
 from fastapi import FastAPI, Request, status
@@ -11,16 +13,21 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
 from app.config import settings
+from app.notifications.mailer import notify_background
 from app.reference_check import ReferencedElsewhereError
 from app.version import APP_VERSION
+
+logger = logging.getLogger(__name__)
 from app.routers import (
     admin_import,
     auth,
     calibrations,
     daq,
+    db_browser,
     features,
     gages,
     measurements,
+    notifications,
     parts,
     production,
     routines,
@@ -78,23 +85,43 @@ async def _integrity_error_handler(request: Request, exc: IntegrityError) -> JSO
 _STATIC_ROUTE_PREFIXES = ("/api", "/ws", "/docs", "/redoc", "/openapi.json", "/health")
 
 
-def _make_spa_fallback_handler(frontend_dist: Path):
+def _make_spa_fallback_handler(frontend_dist: Path | None):
     """StaticFiles(html=True) serve index.html solo per un path che e' una
     directory reale - per una rotta di vue-router come /amministrazione (che
     non esiste come file ne' come cartella in frontend/dist) restituisce un
     404 vero invece del fallback, mandando in errore il refresh della pagina.
     Questo handler intercetta quei 404 e serve comunque index.html, lasciando
-    intatti i 404 "veri" delle API (es. GET /api/runs/999)."""
+    intatti i 404 "veri" delle API (es. GET /api/runs/999).
+
+    Registrato SEMPRE (non solo se frontend_dist esiste): senza un handler
+    esplicito per StarletteHTTPException, un 404/404/409 "voluto" (es. da
+    HTTPException nei router) finirebbe altrimenti intercettato dall'handler
+    generico per Exception qui sotto (piu' generico, quindi meno specifico
+    solo se questo manca) - restituendo un fuorviante 500 invece del codice
+    corretto, e generando notifiche email spurie per un errore che non lo e'.
+    """
 
     async def handler(request: Request, exc: StarletteHTTPException) -> Response:
         path = request.url.path
-        if exc.status_code == 404 and not path.startswith(_STATIC_ROUTE_PREFIXES):
+        if frontend_dist is not None and exc.status_code == 404 and not path.startswith(_STATIC_ROUTE_PREFIXES):
             index_file = frontend_dist / "index.html"
             if index_file.is_file():
                 return FileResponse(index_file)
         return await http_exception_handler(request, exc)
 
     return handler
+
+
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Ultima rete di sicurezza: qualunque eccezione non gia' intercettata da
+    un handler piu' specifico (IntegrityError, ReferencedElsewhereError,
+    HTTPException...) finisce qui. Logga e notifica via email (se
+    configurata) invece di far sparire l'errore in silenzio in un log che
+    magari nessuno guarda finche' non arriva una lamentela dal cliente."""
+    logger.exception("Errore non gestito su %s %s", request.method, request.url.path)
+    body = f"{request.method} {request.url}\n\n{traceback.format_exc()}"
+    await notify_background("system_error", subject="[leank-spc] Errore di sistema", body=body)
+    return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"detail": "Errore interno del server."})
 
 
 async def _referenced_elsewhere_handler(request: Request, exc: ReferencedElsewhereError) -> JSONResponse:
@@ -122,6 +149,7 @@ def create_app() -> FastAPI:
 
     app.add_exception_handler(IntegrityError, _integrity_error_handler)
     app.add_exception_handler(ReferencedElsewhereError, _referenced_elsewhere_handler)
+    app.add_exception_handler(Exception, _unhandled_exception_handler)
 
     for router in (
         auth.router,
@@ -137,6 +165,9 @@ def create_app() -> FastAPI:
         users.router,
         production.router,
         admin_import.router,
+        db_browser.router,
+        notifications.router,
+        notifications.support_router,
         sites_router,
     ):
         app.include_router(router)
@@ -166,8 +197,9 @@ def create_app() -> FastAPI:
     # handler sotto, perche' StaticFiles(html=True) da solo NON lo copre
     # (serve index.html solo per path che sono directory reali).
     frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-    if frontend_dist.is_dir():
-        app.add_exception_handler(StarletteHTTPException, _make_spa_fallback_handler(frontend_dist))
+    frontend_dist_exists = frontend_dist.is_dir()
+    app.add_exception_handler(StarletteHTTPException, _make_spa_fallback_handler(frontend_dist if frontend_dist_exists else None))
+    if frontend_dist_exists:
         app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 
     return app

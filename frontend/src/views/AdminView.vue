@@ -4,6 +4,8 @@ import { usersApi } from "../api/users";
 import { sitesApi, stationsApi } from "../api/stations";
 import { daqDevicesApi, daqSourcesApi } from "../api/daq";
 import { systemApi } from "../api/system";
+import { dbBrowserApi } from "../api/dbBrowser";
+import { notificationSettingsApi } from "../api/notifications";
 
 // Questa vista copre lo stesso ambito di admin/index.html (rimasto invariato,
 // gia' collaudato) ma integrato nel frontend Vue principale, cosi' chi lavora
@@ -299,6 +301,11 @@ async function loadInfo() {
 }
 // Rendering minimale, senza dipendenze esterne: il changelog e' un file
 // controllato da noi (non input utente), non serve un parser markdown vero.
+function inlineMarkdown(text) {
+  return text
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
 function markdownToHtml(md) {
   const lines = (md || "").split("\n");
   let html = "";
@@ -312,31 +319,127 @@ function markdownToHtml(md) {
   for (const line of lines) {
     if (line.startsWith("## ")) {
       closeList();
-      html += `<h4 style="margin:18px 0 6px">${line.slice(3)}</h4>`;
+      html += `<h4 style="margin:18px 0 6px">${inlineMarkdown(line.slice(3))}</h4>`;
     } else if (line.startsWith("# ")) {
       closeList();
-      html += `<h3 style="margin:0 0 8px">${line.slice(2)}</h3>`;
+      html += `<h3 style="margin:0 0 8px">${inlineMarkdown(line.slice(2))}</h3>`;
     } else if (line.startsWith("- ")) {
       if (!inList) {
         html += "<ul style=\"margin:0 0 8px;padding-left:20px\">";
         inList = true;
       }
-      html += `<li style="margin-bottom:4px">${line.slice(2)}</li>`;
+      html += `<li style="margin-bottom:4px">${inlineMarkdown(line.slice(2))}</li>`;
     } else if (line.trim() === "") {
       closeList();
     } else {
       closeList();
-      html += `<p class="hint" style="margin:0 0 8px">${line}</p>`;
+      html += `<p class="hint" style="margin:0 0 8px">${inlineMarkdown(line)}</p>`;
     }
   }
   closeList();
   return html;
 }
 
+// --- Database (esplorazione sola lettura, stile SSMS) ---
+const dbTables = ref([]);
+const dbSelectedTable = ref(null);
+const dbColumns = ref([]);
+const dbRows = ref([]);
+const dbOffset = ref(0);
+const DB_PAGE_SIZE = 50;
+const dbApproxTotal = ref(0);
+const dbLoading = ref(false);
+
+async function loadDbTables() {
+  dbTables.value = await dbBrowserApi.tables();
+}
+async function loadDbRows() {
+  if (!dbSelectedTable.value) return;
+  dbLoading.value = true;
+  error.value = "";
+  try {
+    const res = await dbBrowserApi.rows(dbSelectedTable.value, { limit: DB_PAGE_SIZE, offset: dbOffset.value });
+    dbColumns.value = res.columns;
+    dbRows.value = res.rows;
+    dbApproxTotal.value = res.approx_total;
+  } catch (e) {
+    error.value = e.message || "Impossibile leggere la tabella.";
+  } finally {
+    dbLoading.value = false;
+  }
+}
+async function openDbTable(name) {
+  dbSelectedTable.value = name;
+  dbOffset.value = 0;
+  await loadDbRows();
+}
+async function dbNextPage() {
+  dbOffset.value += DB_PAGE_SIZE;
+  await loadDbRows();
+}
+async function dbPrevPage() {
+  dbOffset.value = Math.max(0, dbOffset.value - DB_PAGE_SIZE);
+  await loadDbRows();
+}
+function formatCell(v) {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+// --- Notifiche email (SMTP) ---
+const notifSettings = reactive({
+  smtp_host: "",
+  smtp_port: 587,
+  smtp_username: "",
+  smtp_password: "",
+  smtp_password_set: false,
+  smtp_use_tls: true,
+  from_email: "",
+  to_email: "",
+  notify_on_agent_disconnected: true,
+  notify_on_system_error: true,
+});
+const notifOk = ref("");
+const notifTesting = ref(false);
+
+async function loadNotifSettings() {
+  const s = await notificationSettingsApi.get();
+  Object.assign(notifSettings, s, { smtp_password: "" });
+}
+async function saveNotifSettings() {
+  error.value = "";
+  notifOk.value = "";
+  try {
+    const { smtp_password_set, ...payload } = notifSettings;
+    if (!payload.smtp_password) delete payload.smtp_password;
+    const s = await notificationSettingsApi.update(payload);
+    Object.assign(notifSettings, s, { smtp_password: "" });
+    notifOk.value = "Impostazioni salvate.";
+  } catch (e) {
+    error.value = e.message || "Impossibile salvare le impostazioni.";
+  }
+}
+async function testNotifSettings() {
+  error.value = "";
+  notifOk.value = "";
+  notifTesting.value = true;
+  try {
+    await notificationSettingsApi.test();
+    notifOk.value = "Email di prova inviata con successo.";
+  } catch (e) {
+    error.value = e.message || "Invio di prova fallito.";
+  } finally {
+    notifTesting.value = false;
+  }
+}
+
 loadUsers();
 loadSitesAndStations();
 loadDaq();
 loadInfo();
+loadDbTables();
+loadNotifSettings();
 </script>
 
 <template>
@@ -346,6 +449,8 @@ loadInfo();
     <button :class="{ primary: tab === 'users' }" @click="tab = 'users'">Utenti</button>
     <button :class="{ primary: tab === 'stations' }" @click="tab = 'stations'">Stazioni</button>
     <button :class="{ primary: tab === 'devices' }" @click="tab = 'devices'">Dispositivi</button>
+    <button :class="{ primary: tab === 'database' }" @click="tab = 'database'">Database</button>
+    <button :class="{ primary: tab === 'notifications' }" @click="tab = 'notifications'">Notifiche</button>
     <button :class="{ primary: tab === 'info' }" @click="tab = 'info'">Info</button>
   </div>
 
@@ -694,6 +799,105 @@ loadInfo();
 
         <button class="primary" style="margin-top: 8px" :disabled="!newSource.station_id || !newSource.device_id || !newSource.name" @click="createSource">Crea</button>
       </details>
+    </div>
+  </div>
+
+  <div v-if="tab === 'database'" class="grid grid-2">
+    <div class="panel">
+      <div class="panel-head"><h3>Tabelle</h3><span class="hint">{{ dbTables.length }}</span></div>
+      <p class="hint" style="margin-top: -4px">Sola lettura — conteggio righe approssimato.</p>
+      <table>
+        <tbody>
+          <tr
+            v-for="t in dbTables"
+            :key="t.name"
+            class="tree-item"
+            :class="{ sel: t.name === dbSelectedTable }"
+            style="cursor: pointer"
+            @click="openDbTable(t.name)"
+          >
+            <td class="mono">{{ t.name }}</td>
+            <td class="hint" style="text-align: right">{{ t.approx_rows }}</td>
+          </tr>
+          <tr v-if="dbTables.length === 0"><td class="hint">Nessuna tabella.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h3>{{ dbSelectedTable || "-- seleziona una tabella --" }}</h3>
+        <span v-if="dbSelectedTable" class="hint">righe {{ dbOffset + 1 }}-{{ dbOffset + dbRows.length }} di ~{{ dbApproxTotal }}</span>
+      </div>
+      <div v-if="dbLoading" class="hint">Caricamento...</div>
+      <div v-else-if="dbSelectedTable" style="overflow-x: auto">
+        <table>
+          <thead>
+            <tr><th v-for="c in dbColumns" :key="c">{{ c }}</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="(r, i) in dbRows" :key="i">
+              <td v-for="c in dbColumns" :key="c" class="mono">{{ formatCell(r[c]) }}</td>
+            </tr>
+            <tr v-if="dbRows.length === 0"><td :colspan="dbColumns.length || 1" class="hint">Nessuna riga.</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top: 10px; display: flex; gap: 8px">
+          <button :disabled="dbOffset === 0" @click="dbPrevPage">&larr; Precedenti</button>
+          <button :disabled="dbOffset + dbRows.length >= dbApproxTotal" @click="dbNextPage">Successive &rarr;</button>
+        </div>
+      </div>
+      <div v-else class="hint">Seleziona una tabella dall'elenco a sinistra.</div>
+    </div>
+  </div>
+
+  <div v-if="tab === 'notifications'" class="panel" style="max-width: 640px">
+    <div class="panel-head"><h3>Notifiche email</h3></div>
+    <p class="hint" style="margin-top: -6px">
+      Usate per: richieste di assistenza inviate dall'app, Edge Agent disconnesso, errori di sistema.
+    </p>
+    <div v-if="notifOk" class="badge ok" style="display: block; padding: 8px 12px; margin-bottom: 12px; width: fit-content">{{ notifOk }}</div>
+    <div class="grid grid-2">
+      <div class="field">
+        <label>Host SMTP</label>
+        <input v-model="notifSettings.smtp_host" placeholder="es. smtp.gmail.com" />
+      </div>
+      <div class="field">
+        <label>Porta</label>
+        <input v-model.number="notifSettings.smtp_port" type="number" />
+      </div>
+      <div class="field">
+        <label>Utente SMTP</label>
+        <input v-model="notifSettings.smtp_username" />
+      </div>
+      <div class="field">
+        <label>Password SMTP</label>
+        <input
+          v-model="notifSettings.smtp_password"
+          type="password"
+          :placeholder="notifSettings.smtp_password_set ? 'già impostata — lascia vuoto per non cambiarla' : ''"
+        />
+      </div>
+      <div class="field">
+        <label>Mittente (From)</label>
+        <input v-model="notifSettings.from_email" placeholder="opzionale, altrimenti usa l'utente SMTP" />
+      </div>
+      <div class="field">
+        <label>Destinatario</label>
+        <input v-model="notifSettings.to_email" />
+      </div>
+    </div>
+    <label style="display: block; margin-top: 8px">
+      <input v-model="notifSettings.smtp_use_tls" type="checkbox" /> Usa STARTTLS
+    </label>
+    <label style="display: block; margin-top: 4px">
+      <input v-model="notifSettings.notify_on_agent_disconnected" type="checkbox" /> Avvisa quando un Edge Agent si disconnette
+    </label>
+    <label style="display: block; margin-top: 4px">
+      <input v-model="notifSettings.notify_on_system_error" type="checkbox" /> Avvisa in caso di errore di sistema
+    </label>
+    <div style="margin-top: 12px; display: flex; gap: 8px">
+      <button class="primary" @click="saveNotifSettings">Salva</button>
+      <button :disabled="notifTesting" @click="testNotifSettings">{{ notifTesting ? "Invio in corso..." : "Invia email di prova" }}</button>
     </div>
   </div>
 

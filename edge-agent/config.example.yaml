@@ -3,7 +3,21 @@
 # sono risolti dal backend al messaggio "hello" — qui si definiscono solo le
 # sorgenti fisiche locali (porte COM / dispositivi HID) di questa stazione.
 
-station_id: 1
+# Indicare la stazione in UNO dei due modi seguenti (non entrambi):
+#
+# 1) per nome (consigliato) — l'agent la risolve da solo al primo avvio
+#    tramite POST /api/stations/resolve (crea sede/stazione se non esistono
+#    ancora, altrimenti riusa quelle già presenti): niente ID numerico da
+#    cercare/copiare a mano, causa reale di configurazioni sbagliate durante
+#    il collaudo (vedi docs/problemi-riscontrati.md).
+station:
+  site_name: "Mopla"
+  name: "SCQ3"
+  # computer_name: se omesso, viene rilevato automaticamente (nome di questo PC)
+
+# 2) per id numerico già noto (es. configurazioni esistenti, o se si preferisce
+#    controllo esplicito) — se presente ha la precedenza sul blocco "station" sopra.
+# station_id: 1
 
 backend:
   ws_url: "ws://localhost:8000/ws/agent"

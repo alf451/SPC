@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import func, select
@@ -6,10 +6,27 @@ from sqlalchemy import func, select
 from app.db import SessionLocal
 from app.models.daq import DaqSource, FeatureDaqBinding
 from app.models.spc import AttributeObservation, Feature, Measurement, Run
+from app.notifications.mailer import notify_background
 from app.security import decode_token
 from app.ws.connection_manager import manager
 
 router = APIRouter()
+
+# Evita di spedire un'email ad ogni singola disconnessione (es. riavvii del
+# backend durante lo sviluppo/collaudo, molto frequenti) - una per stazione
+# ogni tot minuti e' sufficiente per far notare un problema reale senza
+# diventare rumore.
+_DISCONNECT_NOTIFY_COOLDOWN = timedelta(minutes=5)
+_last_disconnect_notified: dict[str, datetime] = {}
+
+
+def _should_notify_disconnect(station_key: str) -> bool:
+    now = datetime.now(timezone.utc)
+    last = _last_disconnect_notified.get(station_key)
+    if last is not None and now - last < _DISCONNECT_NOTIFY_COOLDOWN:
+        return False
+    _last_disconnect_notified[station_key] = now
+    return True
 
 
 async def _authenticate(websocket: WebSocket, token: str | None) -> bool:
@@ -191,3 +208,12 @@ async def agent_websocket(websocket: WebSocket, station_id: int, token: str | No
         pass
     finally:
         manager.disconnect_agent(station_key)
+        if _should_notify_disconnect(station_key):
+            await notify_background(
+                "agent_disconnected",
+                subject="[leank-spc] Edge Agent disconnesso",
+                body=(
+                    f"L'Edge Agent della stazione {station_key} si e' disconnesso.\n"
+                    "Se non era previsto (es. non e' un riavvio del backend), verificare la stazione."
+                ),
+            )

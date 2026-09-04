@@ -2,6 +2,12 @@
 
 Registro delle versioni rilasciate. La versione corrente è mostrata anche in **Amministrazione → Info** nel frontend (letta da `backend/app/version.py`).
 
+## 0.5.0
+
+- **Novità — auto-configurazione stazione**: l'Edge Agent può indicare la stazione per nome (`station: {site_name, name}` in `config.yaml`) invece di un `station_id` numerico da cercare a mano — risolto/creato da solo al primo avvio (`POST /api/stations/resolve`). Causa reale di configurazioni sbagliate durante il collaudo, vedi `docs/problemi-riscontrati.md`. `station_id` resta supportato per compatibilità.
+- **Novità — esplorazione database**: nuovo tab "Database" in Amministrazione, sola lettura, stile SSMS — elenco tabelle con conteggio righe, visualizzazione righe paginata, colonne sensibili (`users.password_hash`) sempre escluse (`GET /api/admin/db/tables`, `GET /api/admin/db/tables/{table}/rows`).
+- **Novità — notifiche email**: configurazione SMTP gestibile da Amministrazione → Notifiche (host/utente/password/destinatario, password mai restituita dall'API), con invio di prova. Tre trigger: pulsante globale "Richiedi assistenza" (con contesto pagina precompilato), Edge Agent disconnesso (con cooldown anti-spam), errore di sistema non gestito. Destinatario di default `mcdataviewerinfo@gmail.com`, modificabile.
+
 ## 0.4.0
 
 - **Fix**: il refresh della pagina su una sotto-rotta (es. `/amministrazione`, `/raccolta-dati`) restituiva un 404 invece di ricaricare l'app — mancava il fallback SPA lato server per le rotte non gestite da `StaticFiles(html=True)`.

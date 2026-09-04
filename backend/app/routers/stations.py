@@ -14,6 +14,7 @@ from app.schemas.daq import (
     SiteUpdate,
     StationCreate,
     StationOut,
+    StationResolve,
     StationUpdate,
 )
 from app.security import get_current_user
@@ -77,6 +78,37 @@ async def list_stations(
 async def create_station(payload: StationCreate, session: Annotated[AsyncSession, Depends(get_session)]) -> Station:
     station = Station(**payload.model_dump())
     session.add(station)
+    await session.commit()
+    await session.refresh(station)
+    return station
+
+
+@router.post("/resolve", response_model=StationOut)
+async def resolve_station(payload: StationResolve, session: Annotated[AsyncSession, Depends(get_session)]) -> Station:
+    """Get-or-create di sede+stazione per nome, usato dall'Edge Agent per
+    auto-configurarsi al primo avvio (vedi edge_agent/station_resolve.py) -
+    evita di dover cercare/copiare a mano lo station_id numerico, causa reale
+    di configurazioni sbagliate durante il collaudo (vedi problemi-riscontrati.md).
+    Idempotente: rilanciato con gli stessi nomi restituisce sempre la stessa
+    stazione, aggiornando computer_name se e' cambiato.
+    """
+    site_result = await session.execute(select(Site).where(Site.name == payload.site_name))
+    site = site_result.scalar_one_or_none()
+    if site is None:
+        site = Site(name=payload.site_name)
+        session.add(site)
+        await session.flush()
+
+    station_result = await session.execute(
+        select(Station).where(Station.site_id == site.id, Station.name == payload.name)
+    )
+    station = station_result.scalar_one_or_none()
+    if station is None:
+        station = Station(site_id=site.id, name=payload.name, computer_name=payload.computer_name)
+        session.add(station)
+    elif payload.computer_name and station.computer_name != payload.computer_name:
+        station.computer_name = payload.computer_name
+
     await session.commit()
     await session.refresh(station)
     return station

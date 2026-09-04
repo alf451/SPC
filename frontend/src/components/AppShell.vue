@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from "vue";
+import { computed, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { supportApi } from "../api/notifications";
 
 const route = useRoute();
 const router = useRouter();
@@ -19,6 +20,46 @@ const title = computed(() => titles[route.name] || "");
 function logout() {
   auth.logout();
   router.push({ name: "login" });
+}
+
+// Pulsante globale "Richiedi assistenza": invia un'email con contesto
+// precompilato (pagina corrente, utente) all'indirizzo configurato in
+// Amministrazione -> Notifiche, cosi' l'operatore non deve spiegare da capo
+// dov'era e cosa stava facendo.
+const showSupport = ref(false);
+const supportForm = reactive({ subject: "", message: "" });
+const supportSending = ref(false);
+const supportFeedback = ref("");
+const supportFeedbackIsError = ref(false);
+
+function openSupport() {
+  showSupport.value = true;
+  supportForm.subject = "";
+  supportForm.message = "";
+  supportFeedback.value = "";
+}
+function closeSupport() {
+  showSupport.value = false;
+}
+async function sendSupport() {
+  if (!supportForm.message) return;
+  supportSending.value = true;
+  supportFeedback.value = "";
+  try {
+    await supportApi.send({
+      subject: supportForm.subject || "Richiesta generica",
+      message: supportForm.message,
+      context: `Pagina: ${title.value} (${route.fullPath})`,
+    });
+    supportFeedbackIsError.value = false;
+    supportFeedback.value = "Richiesta inviata.";
+    setTimeout(closeSupport, 1500);
+  } catch (e) {
+    supportFeedbackIsError.value = true;
+    supportFeedback.value = e.message || "Invio fallito.";
+  } finally {
+    supportSending.value = false;
+  }
 }
 </script>
 
@@ -64,9 +105,32 @@ function logout() {
         <div>
           <h1>{{ title }}</h1>
         </div>
+        <button @click="openSupport">Richiedi assistenza</button>
       </div>
       <div class="content">
         <slot />
+      </div>
+    </div>
+
+    <div v-if="showSupport" style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; z-index: 100">
+      <div class="panel" style="width: 420px; max-width: 90vw">
+        <div class="panel-head"><h3>Richiedi assistenza</h3></div>
+        <p class="hint" style="margin-top: -6px">Invia una segnalazione con il contesto della pagina attuale già incluso.</p>
+        <div v-if="supportFeedback" :class="supportFeedbackIsError ? 'error-box' : 'badge ok'" :style="supportFeedbackIsError ? '' : 'display:block;padding:8px 12px;margin-bottom:8px;width:fit-content'">{{ supportFeedback }}</div>
+        <div class="field">
+          <label>Oggetto</label>
+          <input v-model="supportForm.subject" placeholder="es. Problema con la Raccolta Dati" />
+        </div>
+        <div class="field">
+          <label>Messaggio<span class="required-mark">*</span></label>
+          <textarea v-model="supportForm.message" rows="4" style="width: 100%" :class="{ invalid: !supportForm.message }"></textarea>
+        </div>
+        <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: flex-end">
+          <button @click="closeSupport">Annulla</button>
+          <button class="primary" :disabled="!supportForm.message || supportSending" @click="sendSupport">
+            {{ supportSending ? "Invio..." : "Invia" }}
+          </button>
+        </div>
       </div>
     </div>
   </div>

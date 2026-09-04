@@ -11,6 +11,7 @@ from edge_agent.sources.base import Source
 from edge_agent.sources.digimatic_rs232 import DigimaticRS232Source
 from edge_agent.sources.digimatic_usb_hid import DigimaticUSBHIDSource
 from edge_agent.sources.mock import MockSource
+from edge_agent.station_resolve import resolve_station_id
 from edge_agent.ws_client import WsClient
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,20 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     config_path = sys.argv[1] if len(sys.argv) > 1 else "config.yaml"
     config = load_config(config_path)
+
+    if config.station_id is None:
+        if config.station_ref is None:
+            raise SystemExit(
+                "config.yaml deve indicare 'station_id' (numero) oppure 'station' (site_name/name)"
+            )
+        logger.info(
+            "Risoluzione automatica della stazione: sede=%s, nome=%s",
+            config.station_ref.site_name,
+            config.station_ref.name,
+        )
+        config.station_id = resolve_station_id(config.backend.ws_url, config.backend.token, config.station_ref)
+        logger.info("Stazione risolta: id=%s", config.station_id)
+
     try:
         asyncio.run(async_main(config))
     except KeyboardInterrupt:

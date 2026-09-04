@@ -10,8 +10,21 @@ Se il backend è già installato in `installer\` (modalità pilot), l'Edge Agent
 cd edge-agent
 ..\runtime\python\python.exe -m pip install -r requirements.txt
 copy config.example.yaml config.yaml
-notepad config.yaml   # impostare station_id, port(e) COM, ecc.
+notepad config.yaml   # impostare sede/stazione (o station_id), port(e) COM, ecc.
 ```
+
+## Configurare la stazione (per nome, consigliato)
+
+Nel `config.yaml`, invece di cercare/copiare a mano uno `station_id` numerico (facile sbagliarlo — vedi [`problemi-riscontrati.md`](../docs/problemi-riscontrati.md)), basta indicare sede e nome **esattamente come compaiono in Amministrazione → Stazioni**:
+
+```yaml
+station:
+  site_name: "Mopla"
+  name: "SCQ3"
+  # computer_name: se omesso, rilevato automaticamente (nome di questo PC)
+```
+
+Al primo avvio l'agent chiama da solo `POST /api/stations/resolve`: se sede/stazione non esistono ancora le crea, altrimenti riusa quelle esistenti — idempotente, si può rilanciare senza creare doppioni. Se preferisci indicare direttamente un id numerico già noto, usa `station_id: 2` al posto del blocco `station:` (ha la precedenza se presente).
 
 Se invece l'Edge Agent gira su un **PC diverso** dalla stazione dove c'è il backend (altra postazione della stessa officina), serve un Python 3.11+ locale a quel PC (embeddable o installato normalmente) e la rete deve raggiungere il backend — vedi [le tre modalità di rete](../docs/guida-installazione-e-test.md#le-tre-modalità-di-rete-valgono-su-entrambi-i-sistemi-operativi), da superare prima di questo scenario.
 
