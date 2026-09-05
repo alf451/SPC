@@ -43,7 +43,29 @@ sources:
     request_command: null      # es. "R\r\n" se mode=polled
     frame_terminator: "\r\n"
 
-  # box multiplex con più canali sulla stessa porta RS232 (es. Mitutoyo multi-gage)
+  # Ricevitore Mitutoyo U-Wave-R con più trasmettitori U-Wave-T abbinati (uno
+  # per calibro/micrometro), TUTTI sulla stessa porta COM virtuale (creata da
+  # U-WAVEPAK) - il canale che distingue ogni strumento è dentro al testo di
+  # ogni frame ("DT10000+...", "DT10001+...", ...), non nella porta: per
+  # questo qui c'è "channels" (elenco) invece di "channel_no" (singolo), e
+  # frame_format "uwave" invece di quello generico. Formato e parametri
+  # confermati via cattura diretta sull'hardware reale (vedi
+  # docs/problemi-riscontrati.md e digimatic_rs232.py::parse_uwave_frame).
+  - type: rs232
+    port: "COM7"
+    channels: [10000, 10001, 10002]   # un channel_no per trasmettitore abbinato, assegnato via U-WAVEPAK
+    frame_format: "uwave"
+    baud_rate: 57600
+    data_bits: 8
+    parity: "N"
+    stop_bits: 1
+    mode: "push"
+    frame_terminator: "\r"   # CR da solo, non CRLF - confermato via cattura reale
+
+  # Box multiplex "vero" (canali su porte/percorsi VIRTUALI SEPARATI, non
+  # multiplexati nel testo del frame) - qui basta un blocco normale per
+  # canale, con "port" diverso per ciascuno (non lo stesso "port" ripetuto:
+  # aprire due volte la stessa porta fallisce, un solo processo puo' tenerla aperta).
   - type: rs232
     port: "COM4"
     channel_no: 1

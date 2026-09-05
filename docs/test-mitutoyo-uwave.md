@@ -22,16 +22,42 @@ Il sistema supporta nativamente più strumenti, ed è già coerente con il model
 
 ## Parametri di comunicazione
 
-Confermati dal manuale Mitutoyo (dichiarati per l'uso con Hyper Terminal / come preset in MeasurLink):
+Confermati dal manuale Mitutoyo **e** da una cattura diretta sull'hardware reale (vedi sotto):
 
 ```
-Baud rate:   57600
-Parità:      nessuna
-Bit dati:    8
-Bit di stop: 1
+Baud rate:    57600
+Parità:       nessuna
+Bit dati:     8
+Bit di stop:  1
+Terminatore:  CR (\r, 0x0D) da solo — NON CRLF
 ```
 
-Il **formato esatto dei byte** che arrivano sulla porta COM virtuale (dove inizia il numero, come è terminata la riga, cosa succede quando si tiene premuto il tasto "dati" 5 secondi per il "ritiro" di una misura) **non è documentato** nel manuale utente Mitutoyo — va verificato collegando l'hardware reale. È lo scopo di questa procedura.
+### Formato del frame — confermato ✅
+
+Catturato dal vivo con un ricevitore U-Wave-R e più trasmettitori U-Wave-T abbinati:
+
+```
+DT10000+00000011.88M
+DT10002-0000000.001M
+ST1000100009233899
+TI1120000009241511
+```
+
+- **`DT<5 cifre><segno><cifre>.<cifre><lettera unità>`** — è una misura. Le 5 cifre dopo "DT" sono il **canale** assegnato al trasmettitore via U-WAVEPAK (corrisponde esattamente a `daq_sources.channel_no`) — es. `DT10000` = canale 10000. Il numero di cifre prima/dopo il punto **non è fisso** (es. `+00000011.88` vs `-0000000.001`), il parser non deve assumere una lunghezza costante. La lettera finale (`M` in tutte le catture) è l'unità.
+- **`ST...`** e **`TI...`** — messaggi di **stato** (es. registrazione/conferma del canale), **non misure** — vanno scartati, non interpretati come letture a zero o non valide.
+- Più trasmettitori abbinati allo stesso ricevitore condividono **la stessa porta COM virtuale** — il canale che li distingue è dentro al testo del frame, non nella porta stessa.
+
+Il parser (`edge_agent/sources/digimatic_rs232.py::parse_uwave_frame`) implementa esattamente questo formato — vedi il codice per i dettagli, incluso un test rapido contro le righe reali catturate.
+
+**Ancora non confermato**: il frame del comando di "ritiro" (tasto dati tenuto premuto 5 secondi) — nessuna cattura finora lo mostra distintamente; se capita di osservarlo, segnalarlo per aggiornare il parser.
+
+**Mappatura strumenti osservata in una sessione di test reale** (utile come riferimento, verificare comunque in U-WAVEPAK quale canale è assegnato a quale trasmettitore sulla propria installazione):
+
+| Canale (`channel_no`) | Strumento |
+|---|---|
+| 10000 | Calibro "TSVETI" |
+| 10001 | Calibro "LUCIA" |
+| 10002 | Micrometro |
 
 ## Procedura di test
 
@@ -40,44 +66,26 @@ Il **formato esatto dei byte** che arrivano sulla porta COM virtuale (dove inizi
 - U-WAVEPAK installato e configurato (il ricevitore USB collegato, almeno un trasmettitore abbinato/registrato — verificabile nell'interfaccia di U-WAVEPAK, colonna "S": `r` = registrato non connesso, `c` = connesso)
 - Annotare il **numero di porta COM virtuale** assegnato (visibile in U-WAVEPAK o in Gestione dispositivi di Windows)
 
-### 2. Guardare i byte grezzi (prima di configurare qualunque cosa in leank-spc)
+### 2. (facoltativo) Guardare i byte grezzi con un terminale seriale
 
-Usa lo strumento diagnostico incluso nel progetto: [`edge-agent/tools/serial-monitor.html`](../edge-agent/tools/serial-monitor.html) — pagina standalone, apribile con doppio click in **Chrome o Edge** (richiede la Web Serial API, non supportata da Firefox/Safari).
+Il formato è già confermato (sopra), questo passo serve solo se si vuole verificare la propria installazione specifica o si sospetta un problema. Usa [`edge-agent/tools/serial-monitor.html`](../edge-agent/tools/serial-monitor.html) (standalone, Chrome/Edge — richiede Web Serial API) oppure un qualunque terminale seriale generico (es. quello di sistema, o PuTTY in modalità Serial), parametri 57600-N-8-1, terminatore CR.
 
-1. Apri la pagina, click **"Connetti..."**
-2. Scegli la porta COM virtuale di U-WAVEPAK dal selettore
-3. I parametri sono già preimpostati (57600-N-8-1) — lascia com'è
-4. **Premi il tasto dati sullo strumento collegato** (pressione breve = invia la misura corrente)
-5. Osserva cosa compare nel log:
-   - **Hex e ASCII** di ogni byte ricevuto
-   - Se una riga viene **riconosciuta come numero** dalla stessa regex del parser reale (evidenziata in verde)
-6. Prova anche il **"ritiro"** (tasto dati tenuto premuto 5 secondi) — annota se genera un frame diverso/riconoscibile sulla porta o se non produce nessun output visibile
-7. Click **"Scarica log"** — salva tutto in un `.txt`
+Premi il tasto dati sullo strumento: dovresti vedere righe `DT<canale><valore>M` per ogni misura, e occasionalmente righe `ST...`/`TI...` di stato — normali, il parser le ignora da solo.
 
-Cosa cercare nel log:
-- Il valore ha uno **zero iniziale** quando è sotto 1 (es. `0.1455`) o **no** (es. `.1455`)? Il parser attuale gestisce entrambi i casi, ma è utile saperlo
-- Che carattere termina ogni misura — `\r`, `\n`, `\r\n`, o altro?
-- Ci sono caratteri extra prima/dopo il numero (spazi, prefissi, codici di stato)?
-- Il "ritiro" a 5 secondi produce un frame sulla porta COM, o è un effetto solo lato software (nessun byte in più)?
+### 3. Configurare U-Wave in leank-spc
 
-### 3. Se il parser va adattato
-
-Il parsing vive in [`edge-agent/edge_agent/sources/digimatic_rs232.py`](../edge-agent/edge_agent/sources/digimatic_rs232.py), funzione `parse_digimatic_frame()`. Se il log mostra un formato diverso da quanto quella funzione già gestisce (numero decimale con segno opzionale, terminato da CR/LF), segnala il log scaricato — è la base per adattarla al formato reale osservato, invece di continuare a lavorare per ipotesi.
-
-### 4. Configurare U-Wave in leank-spc
-
-Una volta chiaro il comportamento reale, segui la Parte 3 di [`guida-installazione-e-test.md`](guida-installazione-e-test.md#parte-3--configurare-gli-strumenti-di-misura-daq):
+Segui la Parte 3 di [`guida-installazione-e-test.md`](guida-installazione-e-test.md#parte-3--configurare-gli-strumenti-di-misura-daq):
 
 1. **Amministrazione → Dispositivi → Nuovo profilo dispositivo**: nome `U-Wave`, tipo `rs232`, parametri 57600-N-8-1
-2. **Nuova sorgente DAQ** per ogni canale/trasmettitore in uso, tutte sulla stessa porta COM virtuale, ciascuna con il proprio `channel_no`
-3. Configura l'Edge Agent sulla stazione (`edge-agent/config.yaml`) con quella porta — vedi [`edge-agent/README.md`](../edge-agent/README.md)
+2. **Nuova sorgente DAQ** per ogni canale/trasmettitore in uso, tutte sulla stessa porta COM virtuale, ciascuna con il proprio `channel_no` (es. 10000, 10001, 10002 — vedi tabella sopra)
+3. Configura l'Edge Agent sulla stazione (`edge-agent/config.yaml`): un'unica voce con `port`, `channels: [10000, 10001, 10002]` e `frame_format: "uwave"` — vedi l'esempio in [`edge-agent/config.example.yaml`](../edge-agent/config.example.yaml) e [`edge-agent/README.md`](../edge-agent/README.md)
 
-### 5. Test end-to-end
+### 4. Test end-to-end
 
-Segui la Parte 4 di `guida-installazione-e-test.md`: avvia un Run, premi il tasto dati sullo strumento, verifica che la misura compaia in tempo reale nella schermata "Raccolta Dati".
+Segui la Parte 4 di `guida-installazione-e-test.md`: avvia un Run, premi il tasto dati sullo strumento, verifica che la misura compaia in tempo reale nella schermata "Raccolta Dati", associata alla Feature giusta per quel canale/strumento.
 
 ## Cosa NON è coperto da questa procedura
 
 - Il comportamento con **più ricevitori U-WAVE-R contemporaneamente** sullo stesso PC (concettualmente supportato, non ancora testato dal vivo)
 - Il collegamento diretto via cavo Digimatic **senza** U-Wave (altro convertitore, es. IT-016U USB-ITN) — vedi invece `sources/digimatic_usb_hid.py` e la sezione USB-ITN in `edge-agent/README.md`
-- Calibrazione fine del parser su varianti di formato non ancora osservate (es. valori BCD grezzi invece di ASCII già formattato) — da affrontare solo se il test al punto 2 rivela che il formato reale è diverso da quanto già gestito
+- Il frame del comando di "ritiro" (vedi sopra)

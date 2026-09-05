@@ -76,7 +76,19 @@ class WsClient:
             await asyncio.sleep(next(backoff))
 
     async def _send_hello(self) -> None:
-        sources = [{"port": s.get("port") or s.get("device_path"), "channel_no": s.get("channel_no")} for s in self._config.sources]
+        sources = []
+        for s in self._config.sources:
+            port = s.get("port") or s.get("device_path")
+            channels = s.get("channels")
+            if channels:
+                # Sorgente multiplexata (es. ricevitore U-Wave, frame_format:
+                # "uwave" - vedi digimatic_rs232.py): UNA porta, PIU' canali
+                # letti dal testo del frame stesso, non uno per Source. Vanno
+                # annunciati tutti separatamente al backend, cosi' ciascuno si
+                # risolve nel daq_source_id giusto (stessa porta, channel_no diverso).
+                sources.extend({"port": port, "channel_no": channel} for channel in channels)
+            else:
+                sources.append({"port": port, "channel_no": s.get("channel_no")})
         # Porte seriali fisicamente presenti su QUESTA macchina in questo momento
         # (non solo quelle gia' configurate in sources) - il backend le tiene da
         # parte per il pannello admin/frontend, cosi' si vede cosa c'e' davvero

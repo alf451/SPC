@@ -4,4 +4,4 @@ Da incrementare manualmente ad ogni rilascio significativo, in coppia con
 una nuova voce in CHANGELOG.md alla radice del repository.
 """
 
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.7.1"

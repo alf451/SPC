@@ -54,6 +54,8 @@ Nel `config.yaml`, sezione `sources`, un blocco per porta:
   frame_terminator: "\r\n"
 ```
 
+**Ricevitore multi-canale su una sola porta** (es. Mitutoyo U-Wave-R con più trasmettitori abbinati): non usare più blocchi con lo stesso `port` (fallirebbe, una porta si apre una volta sola) — usa invece `channels: [10000, 10001, ...]` + `frame_format: "uwave"` in un unico blocco. Vedi [`../docs/test-mitutoyo-uwave.md`](../docs/test-mitutoyo-uwave.md) per il formato di frame confermato via cattura reale, e [`config.example.yaml`](../config.example.yaml) per l'esempio completo.
+
 **Prima connessione reale**: il formato esatto del frame (quello che arriva sulla porta quando si preme DATA) va verificato — vedi il TODO in `edge_agent/sources/digimatic_rs232.py::parse_digimatic_frame`. Il modo più rapido per vederlo senza scrivere codice: [`tools/serial-monitor.html`](tools/serial-monitor.html) — pagina standalone (Chrome/Edge) che apre la porta dal browser, mostra ogni byte in hex/ASCII e prova subito il riconoscimento numerico con la stessa regex del parser reale (dettagli in `tools/README.md`). In alternativa un terminale seriale generico (es. PuTTY in modalità Serial, stessi parametri baud/parity/stopbits).
 
 ## Configurare una sorgente USB-ITN

@@ -2,6 +2,10 @@
 
 Registro delle versioni rilasciate. La versione corrente è mostrata anche in **Amministrazione → Info** nel frontend (letta da `backend/app/version.py`).
 
+## 0.7.1
+
+- **Fix — formato reale del frame U-Wave finalmente confermato** (cattura diretta su hardware reale, 3 strumenti su un ricevitore): il parser generico avrebbe estratto il codice canale ("10000") al posto del valore vero ("+11.88"), e trattato i messaggi di stato (`ST`/`TI`) come letture invalide invece di ignorarli. Aggiunto un parser dedicato (`parse_uwave_frame`, `frame_format: "uwave"`) e supporto esplicito per più canali multiplexati sulla stessa porta COM (`channels: [...]` in `config.yaml`, invece di un blocco per canale che avrebbe tentato di aprire la stessa porta più volte). Confermato anche il terminatore reale: CR da solo, non CRLF. Vedi `docs/test-mitutoyo-uwave.md` e `docs/problemi-riscontrati.md`.
+
 ## 0.7.0
 
 - **Fix architetturale importante**: prima d'ora una stazione poteva avere una sola Run "attiva" alla volta — se due Run venivano avviate sulla stessa stazione (es. due strumenti collegati, due commesse diverse in corso in parallelo), **tutte** le letture di **entrambi** gli strumenti finivano attribuite silenziosamente alla Run avviata per ultima. Ora ogni sorgente DAQ (strumento) viene assegnata ("claim") a una Run specifica — automaticamente all'avvio, in base alle sorgenti previste dalla sua Routine — e le letture in arrivo vengono risolte per strumento, non più per stazione. Verificato dal vivo simulando due strumenti reali su una stazione con due Run contemporanee, stesso risultato atteso su entrambe.
