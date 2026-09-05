@@ -74,14 +74,26 @@ Messaggi JSON, campo `type`:
 | type | Direzione | Payload | Descrizione |
 |---|---|---|---|
 | `hello` | agent→server | `{sources: [{port, channel_no}, ...], available_ports: [{device, description, hwid}, ...]}` | l'agent annuncia le sue sorgenti fisiche configurate **e** l'elenco di tutte le porte seriali che vede in questo momento (anche non ancora configurate) - **v0.3**, il server tiene solo l'ultimo elenco ricevuto per stazione, esposto via `GET /api/stations/{id}/available-ports` |
-| `config` | server→agent | `{active_run_id, daq_sources: [{port, channel_no, daq_source_id}], feature_bindings: [{feature_id, daq_source_id}]}` | il server risolve porta→daq_source_id e restituisce il binding Feature del Run attivo sulla stazione. **L'agent resta "dumb": non decide a quale Feature appartiene una lettura**, si limita a includere il `daq_source_id` corretto |
-| `reading` | agent→server | `{daq_source_id, raw_value, captured_at, ref}` | una singola lettura. `ref` è l'id della riga nell'outbox locale dell'agent, echeggiato nell'ack per permettere la correlazione. Il server risolve `daq_source_id` → `feature_id` (via `feature_daq_bindings` sulla Routine del Run attivo), determina se la Feature è `variable`/`attribute` e scrive in `measurements`/`attribute_observations` |
-| `ack` | server→agent | `{ok, ref, obs_no?, reason?}` | conferma scrittura (`reason`: `no_active_run` \| `unbound_daq_source`) — l'agent usa `ref` per rimuovere la riga corrispondente dall'outbox locale |
+| `config` | server→agent | `{active_run_ids: [...], daq_sources: [{port, channel_no, daq_source_id}], feature_bindings: [{feature_id, daq_source_id}]}` | il server risolve porta→daq_source_id. `active_run_ids` è solo informativo (per il log dell'agent) - **v0.7**: può contenere più id, perché più Run possono essere attive in parallelo sulla stessa stazione (vedi sotto). **L'agent resta "dumb": non decide a quale Feature/Run appartiene una lettura**, si limita a includere il `daq_source_id` corretto |
+| `reading` | agent→server | `{daq_source_id, raw_value, captured_at, ref}` | una singola lettura. `ref` è l'id della riga nell'outbox locale dell'agent, echeggiato nell'ack per permettere la correlazione. Il server risolve `daq_source_id` → **quale Run la possiede in questo momento** (`run_daq_claims`, non più "il Run attivo della stazione" - v0.7, vedi sotto) → `feature_id` (via `feature_daq_bindings` sulla Routine di quel Run), determina se la Feature è `variable`/`attribute` e scrive in `measurements`/`attribute_observations` |
+| `ack` | server→agent | `{ok, ref, obs_no?, reason?}` | conferma scrittura (`reason`: `no_active_run` \| `unbound_daq_source`) — l'agent usa `ref` per rimuovere la riga corrispondente dall'outbox locale. `no_active_run` ora significa "nessuna Run possiede in questo momento questo strumento" (non più "la stazione non ha Run attive") |
 | `heartbeat` | entrambe | `{}` | keepalive |
 | `test_source` | server→agent | `{request_id, port, channel_no}` | **v0.2**: chiesto da `POST /api/daq-sources/{id}/test` (pannello admin). Il backend non ha accesso diretto alla porta seriale della stazione, quindi lo chiede all'agent |
 | `test_result` | agent→server | `{request_id, ok, message, sample_raw?}` | risposta al test — correlata via `request_id` a una `Future` lato server (`ConnectionManager.send_agent_request`, timeout 8s). L'agent **non apre una seconda connessione** sulla porta: riporta lo stato "live" della sorgente già in ascolto (connessa? ultima lettura quando?), dato che in modalità "push" non si può forzare una lettura senza premere il tasto DATA sullo strumento |
 
 Dopo ogni `reading` scritta con successo, il server rilancia un evento `measurement` a tutti i client connessi su `/ws/dashboard/{run_id}` per quel Run.
+
+### Più Run in parallelo sulla stessa stazione (v0.7)
+
+Prima della v0.7 una stazione poteva avere una sola Run "attiva" alla volta: il server risolveva ogni `reading` in base alla stazione, non allo strumento. Con due strumenti collegati alla stessa stazione (es. due calibri, ciascuno per una commessa diversa) questo attribuiva **tutte** le letture alla Run avviata per ultima, indipendentemente da quale strumento le avesse generate.
+
+Ora ogni sorgente DAQ (`daq_sources`) viene **assegnata** a una Run specifica tramite `run_daq_claims` (una sola Run "possiede" una sorgente alla volta, vincolo a livello di indice DB): l'assegnazione avviene automaticamente quando si avvia una Run, per le sorgenti della sua Routine non già in uso da un'altra Run ancora attiva; viene rilasciata automaticamente al completamento della Run. Il caso "stesso strumento richiesto contemporaneamente da due Run" è fisicamente ambiguo (un solo strumento produce una lettura alla volta) e non viene deciso automaticamente: va risolto a mano con gli endpoint sotto.
+
+| Endpoint | Note |
+|---|---|
+| `GET /api/runs/{id}/daq-claims` | sorgenti DAQ attualmente assegnate a questa Run |
+| `POST /api/runs/{id}/daq-claims` (`{daq_source_id}`) | assegna esplicitamente una sorgente a questa Run - **409** se è già assegnata a un'altra Run ancora attiva (va liberata prima da lì) |
+| `DELETE /api/runs/{id}/daq-claims/{daq_source_id}` | libera una sorgente da questa Run |
 
 ### `/ws/dashboard/{run_id}?token=<jwt access token>` — push live al frontend
 

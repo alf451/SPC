@@ -5,12 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.daq_claims import auto_claim_for_run, release_all_for_run
 from app.db import get_session
 from app.models.core import User
+from app.models.daq import RunDaqClaim
 from app.models.production import RunSkippedPosition, ToolPosition
 from app.models.spc import AttributeObservation, Measurement, Run, RunTraceabilityValue, TraceabilityField
 from app.schemas.spc import (
+    ClaimDaqSourceIn,
     CurrentPositionIn,
+    DaqClaimOut,
     PositionOut,
     PositionProgressOut,
     RunCreate,
@@ -52,6 +56,12 @@ async def create_run(
     session.add(run)
     await session.commit()
     await session.refresh(run)
+    # Assegna alla Run le sorgenti DAQ della sua Routine, cosi' le letture in
+    # arrivo da quello strumento sanno gia' a quale Run appartenere - vedi
+    # app/daq_claims.py e ws/agent_hub.py::_run_for_daq_source (necessario da
+    # quando piu' Run possono essere attive in parallelo sulla stessa stazione).
+    await auto_claim_for_run(session, run)
+    await session.commit()
     # TODO: notificare la stazione via /ws/agent che un nuovo Run è attivo,
     # così l'Edge Agent riceve i feature_daq_bindings correnti nel messaggio "config".
     return run
@@ -72,9 +82,63 @@ async def complete_run(run_id: int, session: Annotated[AsyncSession, Depends(get
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run non trovato")
     run.status = "completed"
     run.ended_at = datetime.now(timezone.utc)
+    await release_all_for_run(session, run_id)
     await session.commit()
     await session.refresh(run)
     return run
+
+
+@router.get("/{run_id}/daq-claims", response_model=list[DaqClaimOut])
+async def list_run_daq_claims(
+    run_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+) -> list[DaqClaimOut]:
+    result = await session.execute(
+        select(RunDaqClaim.daq_source_id).where(RunDaqClaim.run_id == run_id, RunDaqClaim.released_at.is_(None))
+    )
+    return [DaqClaimOut(daq_source_id=row[0]) for row in result]
+
+
+@router.post("/{run_id}/daq-claims", status_code=status.HTTP_204_NO_CONTENT)
+async def claim_daq_source(
+    run_id: int, payload: ClaimDaqSourceIn, session: Annotated[AsyncSession, Depends(get_session)]
+) -> None:
+    """Assegna esplicitamente uno strumento a questa Run - normalmente non
+    serve (avviene da solo alla creazione, vedi create_run sopra); utile solo
+    per il caso raro in cui lo stesso strumento serva a una Run diversa da
+    quella che lo ha reclamato per prima automaticamente."""
+    run = await session.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run non trovato")
+    existing_result = await session.execute(
+        select(RunDaqClaim).where(
+            RunDaqClaim.daq_source_id == payload.daq_source_id, RunDaqClaim.released_at.is_(None)
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing is not None:
+        if existing.run_id == run_id:
+            return
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Questa sorgente DAQ è già assegnata alla Run #{existing.run_id} - liberarla prima da lì.",
+        )
+    session.add(RunDaqClaim(run_id=run_id, daq_source_id=payload.daq_source_id))
+    await session.commit()
+
+
+@router.delete("/{run_id}/daq-claims/{daq_source_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def release_daq_source(
+    run_id: int, daq_source_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+) -> None:
+    result = await session.execute(
+        select(RunDaqClaim).where(
+            RunDaqClaim.run_id == run_id, RunDaqClaim.daq_source_id == daq_source_id, RunDaqClaim.released_at.is_(None)
+        )
+    )
+    claim = result.scalar_one_or_none()
+    if claim is not None:
+        claim.released_at = datetime.now(timezone.utc)
+        await session.commit()
 
 
 @router.put("/{run_id}/current-position", response_model=RunOut)

@@ -749,7 +749,7 @@ loadProduction();
     <div class="panel">
       <div class="panel-head"><h3>Sorgenti DAQ</h3><span class="hint">porta/canale su una stazione</span></div>
       <table>
-        <thead><tr><th>Nome</th><th>Porta</th><th>Dispositivo</th><th></th></tr></thead>
+        <thead><tr><th>Nome</th><th>Porta</th><th>Dispositivo</th><th>Stato</th><th></th></tr></thead>
         <tbody>
           <template v-for="s in sources" :key="s.id">
             <tr>
@@ -757,19 +757,23 @@ loadProduction();
               <td class="mono">{{ s.port || "-" }}<span v-if="s.channel_no != null"> / ch{{ s.channel_no }}</span></td>
               <td class="hint">{{ deviceName(s.device_id) }}</td>
               <td>
+                <span v-if="s.claimed_by_run_id" class="badge neutral">Run #{{ s.claimed_by_run_id }}</span>
+                <span v-else class="badge ok">libera</span>
+              </td>
+              <td>
                 <button @click="testSource(s.id)">Prova</button>
                 <button @click="startEditSource(s)">Modifica</button>
                 <button class="danger" @click="removeSource(s.id)">Elimina</button>
               </td>
             </tr>
             <tr v-if="testResults[s.id]">
-              <td colspan="4">
+              <td colspan="5">
                 <span class="badge" :class="testResults[s.id].ok ? 'ok' : 'danger'">{{ testResults[s.id].ok ? "OK" : "Fallito" }}</span>
                 <span class="hint" style="margin-left: 8px">{{ testResults[s.id].message }}</span>
               </td>
             </tr>
             <tr v-if="editSource[s.id]">
-              <td colspan="4">
+              <td colspan="5">
                 <div class="grid grid-3">
                   <div class="field">
                     <label>Stazione<span class="required-mark">*</span></label>
@@ -801,7 +805,7 @@ loadProduction();
               </td>
             </tr>
           </template>
-          <tr v-if="sources.length === 0"><td colspan="4" class="hint">Nessuna sorgente.</td></tr>
+          <tr v-if="sources.length === 0"><td colspan="5" class="hint">Nessuna sorgente.</td></tr>
         </tbody>
       </table>
       <details style="margin-top: 12px">

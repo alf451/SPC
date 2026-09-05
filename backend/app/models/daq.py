@@ -45,6 +45,28 @@ class DaqSource(Base):
     status: Mapped[str] = mapped_column(default="active")
 
 
+class RunDaqClaim(Base):
+    """Quale Run possiede in questo momento una sorgente DAQ (strumento) -
+    necessario perché più Run possono essere attive in parallelo sulla
+    stessa stazione (es. due strumenti, due commesse diverse): senza questo,
+    una lettura in arrivo non saprebbe a quale delle Run attive appartenere.
+
+    Un `released_at IS NULL` = claim ancora attivo (vincolo di unicità a
+    livello di indice, vedi migration 0005). Creato automaticamente
+    all'avvio di una Run per le sorgenti già libere e legate alla sua
+    Routine (vedi routers/runs.py::create_run); rilasciato al completamento
+    della Run, o manualmente se serve riassegnare uno strumento prima.
+    """
+
+    __tablename__ = "run_daq_claims"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"))
+    daq_source_id: Mapped[int] = mapped_column(ForeignKey("daq_sources.id", ondelete="CASCADE"))
+    claimed_at: Mapped[datetime] = mapped_column(server_default="now()")
+    released_at: Mapped[datetime | None]
+
+
 class FeatureDaqBinding(Base):
     """Quale sorgente DAQ alimenta quale Feature per una Routine — equivalente FeatureRun.DAQSourceID."""
 

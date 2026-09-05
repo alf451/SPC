@@ -106,6 +106,10 @@ class DaqSourceOut(BaseModel):
     port: str | None
     channel_no: int | None
     status: str
+    # v0.7: quale Run la possiede in questo momento (null = libera) - vedi
+    # app/daq_claims.py. Non e' una colonna del modello DaqSource, viene
+    # calcolata dal router unendo run_daq_claims.
+    claimed_by_run_id: int | None = None
 
 
 class FeatureDaqBindingCreate(BaseModel):

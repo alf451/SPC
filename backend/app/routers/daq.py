@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models.daq import DaqDevice, DaqSource, FeatureDaqBinding
+from app.models.daq import DaqDevice, DaqSource, FeatureDaqBinding, RunDaqClaim
 from app.reference_check import check_not_referenced
 from app.schemas.daq import (
     DaqDeviceCreate,
@@ -43,12 +43,34 @@ async def create_daq_device(
 @router.get("/daq-sources", response_model=list[DaqSourceOut])
 async def list_daq_sources(
     session: Annotated[AsyncSession, Depends(get_session)], station_id: int | None = None
-) -> list[DaqSource]:
+) -> list[DaqSourceOut]:
     query = select(DaqSource)
     if station_id is not None:
         query = query.where(DaqSource.station_id == station_id)
     result = await session.execute(query.order_by(DaqSource.name))
-    return list(result.scalars())
+    sources = list(result.scalars())
+
+    # Quale Run possiede in questo momento ciascuna sorgente (v0.7, vedi
+    # app/daq_claims.py) - utile in Amministrazione per capire perché una
+    # sorgente non riceve letture per la Run che ci si aspetta.
+    claims_result = await session.execute(
+        select(RunDaqClaim.daq_source_id, RunDaqClaim.run_id).where(RunDaqClaim.released_at.is_(None))
+    )
+    claimed_by = {row.daq_source_id: row.run_id for row in claims_result}
+
+    return [
+        DaqSourceOut(
+            id=s.id,
+            station_id=s.station_id,
+            device_id=s.device_id,
+            name=s.name,
+            port=s.port,
+            channel_no=s.channel_no,
+            status=s.status,
+            claimed_by_run_id=claimed_by.get(s.id),
+        )
+        for s in sources
+    ]
 
 
 @router.post("/daq-sources", response_model=DaqSourceOut, status_code=status.HTTP_201_CREATED)

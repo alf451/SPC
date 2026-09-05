@@ -4,7 +4,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import func, select
 
 from app.db import SessionLocal
-from app.models.daq import DaqSource, FeatureDaqBinding
+from app.models.daq import DaqSource, FeatureDaqBinding, RunDaqClaim
 from app.models.spc import AttributeObservation, Feature, Measurement, Run
 from app.notifications.mailer import notify_background
 from app.security import decode_token
@@ -45,13 +45,32 @@ async def _authenticate(websocket: WebSocket, token: str | None) -> bool:
     return payload.get("type") == "access"
 
 
-async def _active_run(station_id: int) -> Run | None:
+async def _active_runs_for_station(station_id: int) -> list[Run]:
+    """Tutte le Run attive su questa stazione - possono essere più di una
+    (es. due strumenti, due commesse in parallelo sulla stessa stazione),
+    per questo il messaggio "hello" riporta un elenco e non un singolo id."""
+    async with SessionLocal() as session:
+        result = await session.execute(
+            select(Run).where(Run.station_id == station_id, Run.status == "active").order_by(Run.started_at.desc())
+        )
+        return list(result.scalars())
+
+
+async def _run_for_daq_source(daq_source_id: int) -> Run | None:
+    """A quale Run appartiene in questo momento una lettura arrivata da
+    questa sorgente DAQ (strumento) - risolta per "possesso" (RunDaqClaim),
+    non più per stazione: due Run attive sulla stessa stazione ricevono
+    correttamente le letture dei rispettivi strumenti, senza ambiguità.
+    Vedi app/daq_claims.py per come/quando nasce un claim."""
     async with SessionLocal() as session:
         result = await session.execute(
             select(Run)
-            .where(Run.station_id == station_id, Run.status == "active")
-            .order_by(Run.started_at.desc())
-            .limit(1)
+            .join(RunDaqClaim, RunDaqClaim.run_id == Run.id)
+            .where(
+                RunDaqClaim.daq_source_id == daq_source_id,
+                RunDaqClaim.released_at.is_(None),
+                Run.status == "active",
+            )
         )
         return result.scalar_one_or_none()
 
@@ -165,14 +184,16 @@ async def agent_websocket(websocket: WebSocket, station_id: int, token: str | No
             msg_type = message.get("type")
 
             if msg_type == "hello":
-                run = await _active_run(station_id)
+                active_runs = await _active_runs_for_station(station_id)
                 resolved_sources = await _resolve_daq_sources(station_id, message.get("sources", []))
-                bindings = await _feature_bindings_for_run(run) if run else []
+                bindings = []
+                for r in active_runs:
+                    bindings.extend(await _feature_bindings_for_run(r))
                 manager.set_available_ports(station_key, message.get("available_ports", []))
                 await websocket.send_json(
                     {
                         "type": "config",
-                        "active_run_id": run.id if run else None,
+                        "active_run_ids": [r.id for r in active_runs],
                         "daq_sources": resolved_sources,
                         "feature_bindings": bindings,
                     }
@@ -180,7 +201,10 @@ async def agent_websocket(websocket: WebSocket, station_id: int, token: str | No
 
             elif msg_type == "reading":
                 ref = message.get("ref")  # id di correlazione lato agent (riga outbox locale), echeggiato nell'ack
-                run = await _active_run(station_id)
+                # Risolta per strumento (non per stazione): permette a piu' Run
+                # di essere attive in parallelo sulla stessa stazione, ciascuna
+                # con il proprio strumento assegnato (vedi app/daq_claims.py).
+                run = await _run_for_daq_source(message["daq_source_id"])
                 if run is None:
                     await websocket.send_json({"type": "ack", "ok": False, "ref": ref, "reason": "no_active_run"})
                     continue

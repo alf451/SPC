@@ -115,6 +115,14 @@ class RunOut(BaseModel):
     current_tool_position_id: int | None
 
 
+class ClaimDaqSourceIn(BaseModel):
+    daq_source_id: int
+
+
+class DaqClaimOut(BaseModel):
+    daq_source_id: int
+
+
 class CurrentPositionIn(BaseModel):
     tool_position_id: int | None  # null = nessuna posizione attiva (stampo monocavità o non ancora scelta)
 

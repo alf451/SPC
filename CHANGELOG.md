@@ -2,6 +2,13 @@
 
 Registro delle versioni rilasciate. La versione corrente è mostrata anche in **Amministrazione → Info** nel frontend (letta da `backend/app/version.py`).
 
+## 0.7.0
+
+- **Fix architetturale importante**: prima d'ora una stazione poteva avere una sola Run "attiva" alla volta — se due Run venivano avviate sulla stessa stazione (es. due strumenti collegati, due commesse diverse in corso in parallelo), **tutte** le letture di **entrambi** gli strumenti finivano attribuite silenziosamente alla Run avviata per ultima. Ora ogni sorgente DAQ (strumento) viene assegnata ("claim") a una Run specifica — automaticamente all'avvio, in base alle sorgenti previste dalla sua Routine — e le letture in arrivo vengono risolte per strumento, non più per stazione. Verificato dal vivo simulando due strumenti reali su una stazione con due Run contemporanee, stesso risultato atteso su entrambe.
+- Nuovi endpoint: `GET/POST /api/runs/{id}/daq-claims`, `DELETE /api/runs/{id}/daq-claims/{daq_source_id}` (assegnazione manuale, serve solo per il caso raro in cui uno strumento vada riassegnato prima che la Run che lo possiede sia completata).
+- **Novità**: colonna "Stato" nella tabella Sorgenti DAQ (Amministrazione → Dispositivi) — mostra se una sorgente è libera o assegnata a quale Run, utile per capire perché una sorgente non riceve letture per la Run attesa.
+- Il messaggio WebSocket `config` ora riporta `active_run_ids` (elenco) invece di `active_run_id` (singolo) — solo informativo per il log dell'Edge Agent, che resta "dumb" e non decide nulla in base a questo.
+
 ## 0.6.0
 
 - **Novità — flusso di acquisizione completo**: "Avvia un nuovo Run" ora permette di scegliere Commessa, Attrezzatura/stampo e Lotto, oltre a Routine e Stazione (i primi tre erano già nello schema dalla v0.2 ma senza nessuna interfaccia).

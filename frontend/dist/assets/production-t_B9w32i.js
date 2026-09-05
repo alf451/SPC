@@ -1,1 +1,0 @@
-import{r as e}from"./index-DmM3hUZf.js";var t={list:()=>e.get(`/api/tools`),create:t=>e.post(`/api/tools`,t),positions:t=>e.get(`/api/tools/${t}/positions`),remove:t=>e.delete(`/api/tools/${t}`)},n={list:t=>e.get(`/api/work-orders`,t),create:t=>e.post(`/api/work-orders`,t)};export{n,t};

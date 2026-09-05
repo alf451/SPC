@@ -31,7 +31,7 @@ class WsClient:
         self._outbox = outbox
         self._sources = sources  # per rispondere a "test_source" senza aprire una seconda connessione sulla porta
         self._daq_source_map: dict[tuple[str, int | None], int] = {}
-        self._active_run_id: int | None = None
+        self._active_run_ids: list[int] = []
         self._ws: websockets.WebSocketClientProtocol | None = None
         self._connected = asyncio.Event()
 
@@ -91,14 +91,21 @@ class WsClient:
             msg_type = message.get("type")
 
             if msg_type == "config":
-                self._active_run_id = message.get("active_run_id")
+                # Piu' di una Run puo' essere attiva in parallelo sulla stessa
+                # stazione (es. due strumenti, due commesse diverse) - l'agent
+                # non deve comunque decidere nulla in base a questo, resta solo
+                # per il log: e' il backend a risolvere, per singolo strumento,
+                # a quale Run appartiene ogni lettura (vedi app/daq_claims.py lato server).
+                self._active_run_ids = message.get("active_run_ids", [])
                 self._daq_source_map = {
                     (item["port"], item["channel_no"]): item["daq_source_id"]
                     for item in message.get("daq_sources", [])
                 }
                 for (port, channel_no), daq_source_id in self._daq_source_map.items():
                     await self._outbox.backfill_daq_source_id(port, channel_no, daq_source_id)
-                logger.info("Config ricevuta: run attivo=%s, sorgenti risolte=%d", self._active_run_id, len(self._daq_source_map))
+                logger.info(
+                    "Config ricevuta: run attive=%s, sorgenti risolte=%d", self._active_run_ids, len(self._daq_source_map)
+                )
 
             elif msg_type == "ack":
                 if message.get("ok") and message.get("ref") is not None:
