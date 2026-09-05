@@ -5,6 +5,7 @@ App web (FastAPI + PostgreSQL + frontend Vue) per SPC e raccolta dati in officin
 ## Documentazione
 
 - [`docs/guida-installazione-e-test.md`](docs/guida-installazione-e-test.md) — **guida unica passo-passo**: installazione Windows (pilota) e Ubuntu (permanente), frontend, configurazione strumenti, test end-to-end, troubleshooting — punto di partenza consigliato
+- [`docs/guida-uso-collaudo.md`](docs/guida-uso-collaudo.md) — **guida operativa per il reparto**: ciclo di collaudo per commessa/articolo/lotto, configurazione, acquisizione, analisi dei dati, scenari di configurazione degli strumenti (uno/più strumenti, più stazioni, Run in parallelo)
 - [`docs/problemi-riscontrati.md`](docs/problemi-riscontrati.md) — diagnosi dettagliata dei problemi reali incontrati durante il collaudo dal vivo (cause, non solo soluzioni)
 - [`docs/sincronizzare-le-modifiche.md`](docs/sincronizzare-le-modifiche.md) — promemoria comandi `git push`/`git pull` per pubblicare e aggiornare
 - [`docs/test-mitutoyo-uwave.md`](docs/test-mitutoyo-uwave.md) — collaudo specifico del sistema Mitutoyo U-Wave (wireless)
