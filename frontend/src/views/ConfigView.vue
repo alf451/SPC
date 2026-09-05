@@ -15,7 +15,7 @@ const bindOk = ref(""); // messaggio di conferma transitorio dopo un collegament
 
 const newPart = reactive({ name: "", description: "" });
 const newRoutine = reactive({ name: "" });
-const newFeature = reactive({ name: "", feature_type: "variable", target: "", lower_tolerance_limit: "", upper_tolerance_limit: "" });
+const newFeature = reactive({ name: "", feature_type: "variable", target: "", lower_tolerance_limit: "", upper_tolerance_limit: "", subgroup_size: 1 });
 const bindForm = reactive({ routine_id: "", feature_id: "", order_no: 0 });
 const daqBindForm = reactive({ routine_id: "", feature_id: "", daq_source_id: "" });
 const editVersion = reactive({}); // { [featureId]: { target, lower_tolerance_limit, upper_tolerance_limit } }
@@ -64,6 +64,7 @@ async function createFeature() {
             target: newFeature.target === "" ? null : Number(newFeature.target),
             lower_tolerance_limit: newFeature.lower_tolerance_limit === "" ? null : Number(newFeature.lower_tolerance_limit),
             upper_tolerance_limit: newFeature.upper_tolerance_limit === "" ? null : Number(newFeature.upper_tolerance_limit),
+            subgroup_size: Number(newFeature.subgroup_size) || 1,
           }
         : null;
     await featuresApi.create({
@@ -76,6 +77,7 @@ async function createFeature() {
     newFeature.target = "";
     newFeature.lower_tolerance_limit = "";
     newFeature.upper_tolerance_limit = "";
+    newFeature.subgroup_size = 1;
     await loadFeatures();
   } catch (e) {
     error.value = e.message || "Impossibile creare la Feature.";
@@ -97,6 +99,7 @@ function startEditVersion(feature) {
     target: p?.target ?? "",
     lower_tolerance_limit: p?.lower_tolerance_limit ?? "",
     upper_tolerance_limit: p?.upper_tolerance_limit ?? "",
+    subgroup_size: p?.subgroup_size ?? 1,
   };
 }
 
@@ -108,6 +111,7 @@ async function saveNewVersion(feature) {
       target: form.target === "" ? null : Number(form.target),
       lower_tolerance_limit: form.lower_tolerance_limit === "" ? null : Number(form.lower_tolerance_limit),
       upper_tolerance_limit: form.upper_tolerance_limit === "" ? null : Number(form.upper_tolerance_limit),
+      subgroup_size: Number(form.subgroup_size) || 1,
     });
     delete editVersion[feature.id];
     await loadFeatures();
@@ -224,7 +228,7 @@ loadDaqSources();
               <td class="mono">
                 <template v-if="f.current_properties">
                   {{ f.current_properties.lower_tolerance_limit ?? "-" }} / [{{ f.current_properties.target ?? "-" }}] / {{ f.current_properties.upper_tolerance_limit ?? "-" }}
-                  <span class="hint">(v{{ f.current_properties.version_no }})</span>
+                  <span class="hint">(v{{ f.current_properties.version_no }}, {{ f.current_properties.subgroup_size }} misure)</span>
                 </template>
                 <span v-else class="hint">nessuna versione</span>
               </td>
@@ -236,6 +240,10 @@ loadDaqSources();
                   <input v-model="editVersion[f.id].lower_tolerance_limit" placeholder="Limite inf." type="number" step="any" />
                   <input v-model="editVersion[f.id].target" placeholder="Target" type="number" step="any" />
                   <input v-model="editVersion[f.id].upper_tolerance_limit" placeholder="Limite sup." type="number" step="any" />
+                </div>
+                <div class="field" style="margin-top: 6px; max-width: 160px">
+                  <label>Nr. misure richieste</label>
+                  <input v-model="editVersion[f.id].subgroup_size" type="number" min="1" />
                 </div>
                 <button class="primary" style="margin-top: 6px" @click="saveNewVersion(f)">Salva nuova versione</button>
                 <button style="margin-top: 6px" @click="delete editVersion[f.id]">Annulla</button>
@@ -259,6 +267,10 @@ loadDaqSources();
           <input v-model="newFeature.lower_tolerance_limit" placeholder="Limite inf. (opz.)" type="number" step="any" />
           <input v-model="newFeature.target" placeholder="Target (opz.)" type="number" step="any" />
           <input v-model="newFeature.upper_tolerance_limit" placeholder="Limite sup. (opz.)" type="number" step="any" />
+        </div>
+        <div class="field" style="margin-top: 8px; max-width: 160px">
+          <label>Nr. misure richieste</label>
+          <input v-model="newFeature.subgroup_size" type="number" min="1" />
         </div>
         <button class="primary" style="margin-top: 8px" :disabled="!newFeature.name" @click="createFeature">Crea Feature</button>
       </details>

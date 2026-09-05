@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models.spc import Measurement
+from app.models.spc import Measurement, Run
 from app.schemas.spc import MeasurementCreate, MeasurementOut
 from app.security import get_current_user
 from app.ws.connection_manager import manager
@@ -41,7 +41,15 @@ async def create_measurement(
     WebSocket (/ws/agent/{station_id}) e vengono scritte da app/ws/agent_hub.py,
     non da questa route REST.
     """
-    measurement = Measurement(run_id=run_id, **payload.model_dump())
+    data = payload.model_dump()
+    if data.get("tool_position_id") is None:
+        # se non specificata esplicitamente, usa la posizione/cavità attiva
+        # in questo momento per il Run (vedi PUT /api/runs/{id}/current-position) -
+        # cosi' il form di inserimento manuale non deve far scegliere la
+        # posizione ad ogni misura, solo quando cambia cavità
+        run = await session.get(Run, run_id)
+        data["tool_position_id"] = run.current_tool_position_id if run else None
+    measurement = Measurement(run_id=run_id, **data)
     session.add(measurement)
     await session.commit()
     await session.refresh(measurement)

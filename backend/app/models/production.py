@@ -43,6 +43,19 @@ class ToolPosition(Base):
     notes: Mapped[str | None]
 
 
+class RunSkippedPosition(Base):
+    """Una posizione/cavità esplicitamente saltata dall'operatore per un Run
+    (es. cavità chiusa/inutilizzata per ragioni tecniche) - registrata invece
+    di sparire silenziosamente, per tracciabilità futura."""
+
+    __tablename__ = "run_skipped_positions"
+
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True)
+    tool_position_id: Mapped[int] = mapped_column(ForeignKey("tool_positions.id", ondelete="CASCADE"), primary_key=True)
+    skipped_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    skipped_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
 class WorkOrder(Base):
     """Commessa — creata di norma da un ERP esterno via POST /api/work-orders."""
 

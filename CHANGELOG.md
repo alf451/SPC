@@ -2,6 +2,14 @@
 
 Registro delle versioni rilasciate. La versione corrente è mostrata anche in **Amministrazione → Info** nel frontend (letta da `backend/app/version.py`).
 
+## 0.6.0
+
+- **Novità — flusso di acquisizione completo**: "Avvia un nuovo Run" ora permette di scegliere Commessa, Attrezzatura/stampo e Lotto, oltre a Routine e Stazione (i primi tre erano già nello schema dalla v0.2 ma senza nessuna interfaccia).
+- **Novità — posizione/cavità**: quando il Run usa un'attrezzatura multi-cavità, la Raccolta Dati mostra la cavità attiva, il conteggio misure per ciascuna Feature rispetto al numero richiesto (`subgroup_size`), un pulsante per saltare una cavità chiusa/inutilizzata (registrato a DB, annullabile) e per passare alla successiva. Ogni misura (da Edge Agent o manuale) viene marcata automaticamente con la posizione attiva del Run.
+- **Novità**: campo "Nr. misure richieste" (`subgroup_size`) nella configurazione di una Feature (Routine & Quote) — esisteva già nello schema/API, mancava solo nell'interfaccia.
+- **Novità**: nuovo tab "Produzione" in Amministrazione per creare Commesse e Attrezzature/stampi (con le rispettive cavità, generate automaticamente).
+- Nuovi endpoint: `PUT/GET /api/runs/{id}/current-position`, `POST/DELETE /api/runs/{id}/skip-position`, `GET /api/runs/{id}/position-progress`, `GET/PUT /api/runs/{id}/traceability/{campo}`.
+
 ## 0.5.0
 
 - **Novità — auto-configurazione stazione**: l'Edge Agent può indicare la stazione per nome (`station: {site_name, name}` in `config.yaml`) invece di un `station_id` numerico da cercare a mano — risolto/creato da solo al primo avvio (`POST /api/stations/resolve`). Causa reale di configurazioni sbagliate durante il collaudo, vedi `docs/problemi-riscontrati.md`. `station_id` resta supportato per compatibilità.

@@ -6,6 +6,8 @@ import { daqDevicesApi, daqSourcesApi } from "../api/daq";
 import { systemApi } from "../api/system";
 import { dbBrowserApi } from "../api/dbBrowser";
 import { notificationSettingsApi } from "../api/notifications";
+import { toolsApi, workOrdersApi } from "../api/production";
+import { partsApi } from "../api/parts";
 
 // Questa vista copre lo stesso ambito di admin/index.html (rimasto invariato,
 // gia' collaudato) ma integrato nel frontend Vue principale, cosi' chi lavora
@@ -434,12 +436,67 @@ async function testNotifSettings() {
   }
 }
 
+// --- Produzione (commesse, stampi/attrezzature) ---
+const workOrders = ref([]);
+const tools = ref([]);
+const parts = ref([]);
+const newWorkOrder = reactive({ order_number: "", part_id: "", customer: "", quantity_ordered: "" });
+const newTool = reactive({ name: "", tool_type: "mold", position_count: 1, description: "" });
+
+async function loadProduction() {
+  [workOrders.value, tools.value, parts.value] = await Promise.all([workOrdersApi.list(), toolsApi.list(), partsApi.list()]);
+}
+async function createWorkOrder() {
+  error.value = "";
+  try {
+    await workOrdersApi.create({
+      order_number: newWorkOrder.order_number,
+      part_id: newWorkOrder.part_id ? Number(newWorkOrder.part_id) : null,
+      customer: newWorkOrder.customer || null,
+      quantity_ordered: newWorkOrder.quantity_ordered === "" ? null : Number(newWorkOrder.quantity_ordered),
+    });
+    Object.assign(newWorkOrder, { order_number: "", part_id: "", customer: "", quantity_ordered: "" });
+    await loadProduction();
+  } catch (e) {
+    error.value = e.message || "Impossibile creare la commessa.";
+  }
+}
+async function createTool() {
+  error.value = "";
+  try {
+    await toolsApi.create({
+      name: newTool.name,
+      tool_type: newTool.tool_type,
+      position_count: Number(newTool.position_count) || 1,
+      description: newTool.description || null,
+    });
+    Object.assign(newTool, { name: "", tool_type: "mold", position_count: 1, description: "" });
+    await loadProduction();
+  } catch (e) {
+    error.value = e.message || "Impossibile creare l'attrezzatura.";
+  }
+}
+async function removeTool(id) {
+  if (!confirm("Eliminare questa attrezzatura?")) return;
+  error.value = "";
+  try {
+    await toolsApi.remove(id);
+    await loadProduction();
+  } catch (e) {
+    error.value = e.message || "Impossibile eliminare l'attrezzatura.";
+  }
+}
+function partName(id) {
+  return parts.value.find((p) => p.id === id)?.name || "-";
+}
+
 loadUsers();
 loadSitesAndStations();
 loadDaq();
 loadInfo();
 loadDbTables();
 loadNotifSettings();
+loadProduction();
 </script>
 
 <template>
@@ -449,6 +506,7 @@ loadNotifSettings();
     <button :class="{ primary: tab === 'users' }" @click="tab = 'users'">Utenti</button>
     <button :class="{ primary: tab === 'stations' }" @click="tab = 'stations'">Stazioni</button>
     <button :class="{ primary: tab === 'devices' }" @click="tab = 'devices'">Dispositivi</button>
+    <button :class="{ primary: tab === 'production' }" @click="tab = 'production'">Produzione</button>
     <button :class="{ primary: tab === 'database' }" @click="tab = 'database'">Database</button>
     <button :class="{ primary: tab === 'notifications' }" @click="tab = 'notifications'">Notifiche</button>
     <button :class="{ primary: tab === 'info' }" @click="tab = 'info'">Info</button>
@@ -798,6 +856,91 @@ loadNotifSettings();
         </div>
 
         <button class="primary" style="margin-top: 8px" :disabled="!newSource.station_id || !newSource.device_id || !newSource.name" @click="createSource">Crea</button>
+      </details>
+    </div>
+  </div>
+
+  <div v-if="tab === 'production'" class="grid grid-2">
+    <div class="panel">
+      <div class="panel-head"><h3>Commesse</h3><span class="hint">{{ workOrders.length }}</span></div>
+      <table>
+        <thead><tr><th>Commessa</th><th>Articolo</th><th>Cliente</th><th>Stato</th></tr></thead>
+        <tbody>
+          <tr v-for="w in workOrders" :key="w.id">
+            <td class="mono">{{ w.order_number }}</td>
+            <td class="hint">{{ partName(w.part_id) }}</td>
+            <td class="hint">{{ w.customer || "-" }}</td>
+            <td><span class="badge neutral">{{ w.status }}</span></td>
+          </tr>
+          <tr v-if="workOrders.length === 0"><td colspan="4" class="hint">Nessuna commessa.</td></tr>
+        </tbody>
+      </table>
+      <details style="margin-top: 12px">
+        <summary class="hint" style="cursor: pointer">Nuova commessa</summary>
+        <div class="grid grid-2" style="margin-top: 8px">
+          <div class="field">
+            <label>Numero commessa<span class="required-mark">*</span></label>
+            <input v-model="newWorkOrder.order_number" :class="{ invalid: isBlank(newWorkOrder.order_number) }" />
+          </div>
+          <div class="field">
+            <label>Articolo</label>
+            <select v-model="newWorkOrder.part_id">
+              <option value="">-- nessuno --</option>
+              <option v-for="p in parts" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Cliente</label>
+            <input v-model="newWorkOrder.customer" />
+          </div>
+          <div class="field">
+            <label>Quantità ordinata</label>
+            <input v-model="newWorkOrder.quantity_ordered" type="number" />
+          </div>
+        </div>
+        <button class="primary" style="margin-top: 8px" :disabled="!newWorkOrder.order_number" @click="createWorkOrder">Crea</button>
+      </details>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Attrezzature (stampi/fustelle)</h3><span class="hint">{{ tools.length }}</span></div>
+      <table>
+        <thead><tr><th>Nome</th><th>Tipo</th><th>Cavità</th><th></th></tr></thead>
+        <tbody>
+          <tr v-for="t in tools" :key="t.id">
+            <td>{{ t.name }}</td>
+            <td class="hint">{{ t.tool_type }}</td>
+            <td class="mono">{{ t.position_count }}</td>
+            <td><button class="danger" @click="removeTool(t.id)">Elimina</button></td>
+          </tr>
+          <tr v-if="tools.length === 0"><td colspan="4" class="hint">Nessuna attrezzatura.</td></tr>
+        </tbody>
+      </table>
+      <details style="margin-top: 12px">
+        <summary class="hint" style="cursor: pointer">Nuova attrezzatura</summary>
+        <div class="grid grid-2" style="margin-top: 8px">
+          <div class="field">
+            <label>Nome<span class="required-mark">*</span></label>
+            <input v-model="newTool.name" :class="{ invalid: isBlank(newTool.name) }" />
+          </div>
+          <div class="field">
+            <label>Tipo</label>
+            <select v-model="newTool.tool_type">
+              <option value="mold">Stampo</option>
+              <option value="die">Fustella</option>
+              <option value="other">Altro</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Nr. cavità/posizioni</label>
+            <input v-model="newTool.position_count" type="number" min="1" />
+          </div>
+          <div class="field">
+            <label>Descrizione</label>
+            <input v-model="newTool.description" />
+          </div>
+        </div>
+        <p class="hint" style="margin: 4px 0 0">Le posizioni (1..N) vengono create automaticamente, numerate.</p>
+        <button class="primary" style="margin-top: 8px" :disabled="!newTool.name" @click="createTool">Crea</button>
       </details>
     </div>
   </div>

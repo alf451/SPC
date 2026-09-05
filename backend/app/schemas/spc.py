@@ -112,6 +112,39 @@ class RunOut(BaseModel):
     ended_at: datetime | None
     work_order_id: int | None
     tool_id: int | None
+    current_tool_position_id: int | None
+
+
+class CurrentPositionIn(BaseModel):
+    tool_position_id: int | None  # null = nessuna posizione attiva (stampo monocavità o non ancora scelta)
+
+
+class SkipPositionIn(BaseModel):
+    tool_position_id: int
+
+
+class PositionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    position_no: int
+    label: str | None
+    skipped: bool
+    # { feature_id: numero di misure/osservazioni già registrate per questa posizione }
+    counts: dict[int, int]
+
+
+class PositionProgressOut(BaseModel):
+    has_tool: bool
+    positions: list[PositionOut]
+
+
+class TraceabilityValueIn(BaseModel):
+    value: str | None
+
+
+class TraceabilityValueOut(BaseModel):
+    field_name: str
+    value: str | None
 
 
 class MeasurementCreate(BaseModel):

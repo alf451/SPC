@@ -118,6 +118,7 @@ async def _persist_reading(run: Run, daq_source_id: int, raw_value: float | None
                 obs_no=obs_no,
                 defect_count=int(raw_value or 0),
                 captured_at=captured_at,
+                tool_position_id=run.current_tool_position_id,
             )
         else:
             obs_no = (
@@ -135,6 +136,7 @@ async def _persist_reading(run: Run, daq_source_id: int, raw_value: float | None
                 value=raw_value,
                 captured_at=captured_at,
                 source="daq",
+                tool_position_id=run.current_tool_position_id,
             )
 
         session.add(row)

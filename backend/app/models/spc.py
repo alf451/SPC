@@ -138,6 +138,10 @@ class Run(Base):
     # integrazione ERP (v0.2, migration 0002): a quale commessa/attrezzatura appartiene questo Run
     work_order_id: Mapped[int | None] = mapped_column(ForeignKey("work_orders.id"))
     tool_id: Mapped[int | None] = mapped_column(ForeignKey("tools.id"))
+    # posizione/cavita' attiva in questo momento (v0.6, migration 0004) - il
+    # backend marca con questa ogni nuova misura in arrivo (WS o manuale),
+    # l'Edge Agent non ne sa nulla (vedi ws/agent_hub.py::_persist_reading)
+    current_tool_position_id: Mapped[int | None] = mapped_column(ForeignKey("tool_positions.id"))
 
 
 class Measurement(Base):
