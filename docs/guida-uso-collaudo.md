@@ -109,6 +109,8 @@ Se ti serve analisi statistica **oggi**, la via più pratica è esportare le mis
 
 ## 5. Scenari di configurazione degli strumenti
 
+> 🎛️ **Simulazione interattiva**: [Scenari Strumenti DAQ](https://claude.ai/code/artifact/fd090996-e006-49cb-8163-e715a8f17394) — prova ciascuno dei 6 scenari sotto, con configurazione e pulsanti "Premi DATA" per vedere dove atterra ogni lettura simulata.
+
 ### 5.1 Un solo strumento, una sola stazione (caso base)
 
 Un profilo dispositivo, una sorgente DAQ, un binding Feature→Sorgente. Una Run alla volta su quella stazione. Nessuna configurazione aggiuntiva.
